@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  {{#metaRefresh}}<meta http-equiv="refresh" content="{{{metaRefresh}}}">{{/metaRefresh}}
+  <title>{{heading}}</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  {{#hasBrand}}
+  <div class="brandbar">
+    {{#hasLogo}}<img src="{{logoUrl}}" alt="">{{/hasLogo}}
+    {{#brandName}}<span class="name">{{brandName}}</span>{{/brandName}}
+  </div>
+  {{/hasBrand}}
+
+  <main>
+    <div class="card">
+      {{#emoji}}<div class="big-emoji">{{emoji}}</div>{{/emoji}}
+      <h1>{{heading}}</h1>
+      {{#subtext}}<p class="lead">{{subtext}}</p>{{/subtext}}
+      {{#linkUrl}}<a class="btn" href="{{linkUrl}}">{{linkLabel}}</a>{{/linkUrl}}
+    </div>
+  </main>
+</body>
+</html>

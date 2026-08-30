@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  {{#hasBrand}}
+  <div class="brandbar">
+    {{#hasLogo}}<img src="{{logoUrl}}" alt="">{{/hasLogo}}
+    {{#brandName}}<span class="name">{{brandName}}</span>{{/brandName}}
+  </div>
+  {{/hasBrand}}
+
+  <main>
+    <img class="photo" src="{{photoUrl}}" alt="{{title}}">
+    <a class="btn" href="{{downloadUrl}}" download>{{downloadLabel}}</a>
+    {{#againUrl}}<a class="btn secondary" href="{{againUrl}}">{{againLabel}}</a>{{/againUrl}}
+  </main>
+</body>
+</html>

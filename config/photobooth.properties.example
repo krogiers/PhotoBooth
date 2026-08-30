@@ -1,0 +1,122 @@
+# Copy to photobooth.properties (same directory) and adjust for your hardware/venue.
+# photobooth.properties is git-ignored so per-booth settings don't get committed.
+
+# Which Camera implementation to use:
+#   auto        - Pi camera (rpicam-still) on Linux, else a Mac webcam via
+#                 imagesnap if installed, else a synthetic placeholder photo.
+#   pi          - force the Pi Camera Module (rpicam-still), e.g. when testing
+#                 on the Pi itself.
+#   webcam      - force imagesnap (Mac built-in/USB webcam).
+#   placeholder - force the synthetic placeholder photo, on any OS.
+camera.type=auto
+
+# Guest-facing text language, for both the kiosk screens and the small web
+# pages a guest's phone opens (/choose, /p/{name}, ...). Built in: en, nl.
+#
+# Wording comes from .properties files, not hardcoded Kotlin, so it can be
+# tweaked or a new language added without a rebuild: drop a
+# config/i18n/<code>.properties file with just the keys you want to change —
+# see src/main/resources/i18n/en.properties for the full list of keys and
+# their meaning. A whole new language just needs that one file; it doesn't
+# have to be built in first.
+ui.language=nl
+
+# BCM pin numbers, not physical header pin numbers.
+gpio.button.pin=17
+gpio.led.pin=27
+
+countdown.seconds=3
+
+# How long the merged photo + download QR stay on screen before the idle
+# screen (with the live self-view) returns.
+result.display.seconds=15
+
+# Initial window size in pixels. Only matters in windowed dev mode
+# (PHOTOBOOTH_WINDOWED set) — a full-screen kiosk uses the display's own
+# size and the self-view scales to fill it.
+window.width=1024
+window.height=768
+
+# How often the idle/countdown self-view grabs a fresh still from the camera.
+# Only used when there's no live preview stream available (a forced
+# placeholder/webcam camera, or macOS without ffmpeg). rpicam-still/imagesnap
+# are single-shot processes, so pick a value that matches how fast they
+# actually run on your hardware (lower = more "live" feeling, more camera load).
+preview.interval.ms=1000
+
+# Port the local download server listens on. Guests never hit this directly:
+# a Cloudflare quick tunnel (cloudflared must be installed, and this machine
+# needs outbound internet) exposes it on the public internet, so a guest's
+# phone reaches their photo over its own mobile data — no network switching,
+# no venue Wi-Fi needed. The tunnel takes a few extra seconds at startup.
+server.port=8080
+
+# Where photos are written, relative to the working directory the app is
+# launched from. Each run's photos go under data.dir/<subfolder>/ (originals/
+# and merged/), so back-to-back events stay separate even if data/ is never
+# cleaned out. The subfolder is today's date (2026-08-30) unless data.subdir
+# is set — handy to name it per event. QR codes are never written to disk.
+data.dir=data
+# data.subdir=tibo-uitzwaai
+
+# Transparent PNG (same aspect ratio as the camera resolution) drawn on top
+# of every captured photo. Used for every shoot unless overlay.selection.enabled
+# below is true and the guest picked a different one on their phone.
+overlay.file=config/overlay.png
+
+# When true, the idle screen shows a second QR ("scan to choose your
+# overlay") linking to a small page listing every .png in overlays.dir; a
+# guest's pick is used for their next photo, then forgotten so the next
+# group starts from overlay.file again.
+overlay.selection.enabled=false
+overlays.dir=config/overlays
+
+# When true (the default), the phone's layout page (/choose) shows a
+# "Take the photo" button that starts the countdown, and then shows the
+# guest their finished photo automatically. There is no separate QR for it.
+# Reachable by anyone on the public internet who has the tunnel URL, so turn
+# this off if that's not acceptable for your venue (e.g. an unattended booth
+# where a random remote trigger would waste a shot with nobody in frame).
+remote_start.enabled=true
+
+# Branding for the pages a guest's phone opens (the download page, the overlay
+# picker, ...). web.brand.name is an optional wordmark shown at the top of
+# every page. For a full rebrand, drop files into config/web/ (no rebuild):
+#   config/web/style.css   - replaces the bundled stylesheet; the quickest
+#                            change is just the :root custom properties
+#                            (accent colour, background). See
+#                            src/main/resources/web/style.css for the starting point.
+#   config/web/logo.png     - (or .svg/.jpg) shown next to web.brand.name.
+#   config/web/*.mustache   - replace a whole page's markup if you need to.
+# Preview: `./gradlew renderPhonePages` (offline), or open <tunnel-url>/preview
+# on a phone while the booth is running.
+web.brand.name=
+
+# Per-event dressing for the JavaFX idle screen. All optional; files go in
+# config/decor/ (no rebuild). Leave everything blank and the screen looks as
+# before. Use transparent PNGs so nothing shows as a white box over the
+# camera self-view.
+#
+# Bunting / garland, stretched across the top edge:
+decor.bunting.file=
+decor.bunting.height=140
+#
+# One free-placed graphic (a landmark, mascot, map, ...):
+decor.graphic.file=
+#   position: top-left | top-center | top-right | center
+#             | bottom-left | bottom-center | bottom-right
+decor.graphic.position=bottom-right
+decor.graphic.height=240
+#
+# A title somewhere on the screen, optionally in a custom font:
+decor.title.text=
+decor.title.font=
+decor.title.size=64
+decor.title.color=#ffffff
+decor.title.position=top-center
+
+# The kiosk's "starting…" splash and startup-error screens are styled by
+# src/main/resources/kiosk/kiosk.css. Drop config/kiosk/kiosk.css to restyle
+# them per event (no rebuild) — it's layered on top, so only the rules you
+# want to change. JavaFX CSS (`-fx-` prefixed); `@font-face` works for a
+# custom font. No key here — it's just the file's presence.

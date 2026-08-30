@@ -1,0 +1,24 @@
+.gradle/
+build/
+out/
+*.class
+
+# Per-booth configuration (pins, host, etc.) — copy from photobooth.properties.example
+config/photobooth.properties
+
+# Per-event phone-page branding (overrides src/main/resources/web/) — style.css, logo.*, templates
+config/web/
+
+# Per-event idle-screen decoration — bunting.png, a graphic, title.ttf
+config/decor/
+
+# Per-event kiosk styling — kiosk.css (splash / error screens)
+config/kiosk/
+
+# Captured/generated photos and QR codes
+data/
+
+.idea/
+*.iml
+.vscode/
+.DS_Store

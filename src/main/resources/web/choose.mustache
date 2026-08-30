@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  {{#hasBrand}}
+  <div class="brandbar">
+    {{#hasLogo}}<img src="{{logoUrl}}" alt="">{{/hasLogo}}
+    {{#brandName}}<span class="name">{{brandName}}</span>{{/brandName}}
+  </div>
+  {{/hasBrand}}
+
+  <main>
+    <h1>{{heading}}</h1>
+    <div class="grid">
+      {{#overlays}}
+      <a class="tile{{#selected}} selected{{/selected}}" href="{{chooseUrl}}">
+        <img src="{{thumbUrl}}" alt="{{label}}">
+        <span class="label">{{label}}</span>
+      </a>
+      {{/overlays}}
+    </div>
+    {{#canShoot}}
+    <a class="btn shoot" href="{{shootUrl}}">{{shootLabel}}</a>
+    {{/canShoot}}
+  </main>
+</body>
+</html>

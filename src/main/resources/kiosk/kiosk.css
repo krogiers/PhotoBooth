@@ -1,0 +1,23 @@
+/*
+ * Look of the kiosk's standalone message screens — the "starting…" splash and
+ * the startup-error screen.
+ *
+ * To restyle per event, drop your own file at config/kiosk/kiosk.css — it is
+ * layered on top of this one (no rebuild), so you only need the rules you want
+ * to change. JavaFX CSS: properties are `-fx-` prefixed; `@font-face` with
+ * `src: url("config/kiosk/yourfont.ttf")` works if you want a custom font.
+ */
+
+.kiosk-root {
+    -fx-background-color: #101014;
+    -fx-alignment: center;
+    -fx-padding: 48;
+}
+
+.kiosk-message {
+    -fx-font-size: 32px;
+    -fx-text-fill: #f2f2f5;
+    -fx-text-alignment: center;   /* wrap alignment across lines */
+    -fx-alignment: center;        /* the text block within the (wide) label — keeps it centred */
+    -fx-wrap-text: true;
+}
