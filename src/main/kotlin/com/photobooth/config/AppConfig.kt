@@ -74,6 +74,8 @@ data class AppConfig(
     val webBrandName: String?,
     /** Per-event dressing for the JavaFX idle screen — see [DecorConfig]. [DecorConfig.NONE] when nothing is set. */
     val decor: DecorConfig,
+    /** Where the idle screen's QR codes and "tap to start" hint sit — see [KioskLayout]. */
+    val kioskLayout: KioskLayout,
     /**
      * Initial window size (px). Only visible in windowed dev mode
      * (`PHOTOBOOTH_WINDOWED`); a full-screen kiosk uses the display's own
@@ -116,6 +118,7 @@ data class AppConfig(
                 remoteStartEnabled = prop("remote_start.enabled", "true").toBoolean(),
                 webBrandName = prop("web.brand.name", "").ifBlank { null },
                 decor = DecorConfig.from(props),
+                kioskLayout = KioskLayout.from(props),
                 windowWidth = prop("window.width", "1024").toInt(),
                 windowHeight = prop("window.height", "768").toInt(),
             )

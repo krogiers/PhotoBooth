@@ -18,46 +18,81 @@ class DecorConfigTest {
     fun `empty properties produce the NONE decor`() {
         val decor = DecorConfig.from(Properties())
 
-        assertNull(decor.buntingFile)
-        assertNull(decor.graphicFile)
+        assertTrue(decor.items.isEmpty())
         assertNull(decor.titleText)
-        assertNull(decor.titleFontFile)
         assertTrue(decor.isEmpty)
         assertEquals(DecorConfig.NONE, decor)
     }
 
     @Test
-    fun `blank values are treated as unset`() {
-        val decor = DecorConfig.from(props("decor.title.text" to "   ", "decor.bunting.file" to ""))
+    fun `a numbered image layer is read with position, size and rotation`() {
+        val decor = DecorConfig.from(
+            props(
+                "decor.1.file" to "config/decor/wimpels.png",
+                "decor.1.position" to "top-left",
+                "decor.1.width" to "45%",
+                "decor.1.rotate" to "-12",
+            ),
+        )
 
-        assertNull(decor.titleText)
-        assertNull(decor.buntingFile)
-        assertTrue(decor.isEmpty)
+        assertEquals(1, decor.items.size)
+        val item = decor.items.single()
+        assertEquals(File("config/decor/wimpels.png"), item.file)
+        assertEquals(DecorPosition.TOP_LEFT, item.position)
+        assertEquals(DecorSize(0.45, percentOfScreen = true), item.width)
+        assertNull(item.height)
+        assertEquals(-12.0, item.rotate)
+        assertTrue(!decor.isEmpty)
     }
 
     @Test
-    fun `file, number, colour and text values are read through`() {
+    fun `layers are collected in order and gaps are skipped`() {
         val decor = DecorConfig.from(
             props(
-                "decor.bunting.file" to "config/decor/bunting.png",
-                "decor.bunting.height" to "150",
-                "decor.graphic.file" to "config/decor/sweden.png",
-                "decor.graphic.height" to "300",
+                "decor.1.file" to "a.png",
+                "decor.3.file" to "c.png", // decor.2 absent
+                "decor.5.file" to "e.png",
+            ),
+        )
+
+        assertEquals(listOf("a.png", "c.png", "e.png"), decor.items.map { it.file.name })
+    }
+
+    @Test
+    fun `a layer with no position defaults to centre and no size means natural`() {
+        val item = DecorConfig.from(props("decor.1.file" to "x.png")).items.single()
+
+        assertEquals(DecorPosition.CENTER, item.position)
+        assertNull(item.width)
+        assertNull(item.height)
+        assertEquals(0.0, item.rotate)
+    }
+
+    @Test
+    fun `DecorSize parses px and percent`() {
+        assertEquals(DecorSize(800.0, percentOfScreen = false), DecorSize.parse("800"))
+        assertEquals(DecorSize(0.9, percentOfScreen = true), DecorSize.parse(" 90% "))
+        assertNull(DecorSize.parse(""))
+        assertNull(DecorSize.parse(null))
+    }
+
+    @Test
+    fun `the text title is still read from decor_title keys`() {
+        val decor = DecorConfig.from(
+            props(
                 "decor.title.text" to "Tibo's uitzwaai feestje",
                 "decor.title.font" to "config/decor/title.ttf",
                 "decor.title.size" to "72",
                 "decor.title.color" to "#1f3b63",
+                "decor.title.position" to "top-center",
             ),
         )
 
-        assertEquals(File("config/decor/bunting.png"), decor.buntingFile)
-        assertEquals(150.0, decor.buntingHeight)
-        assertEquals(File("config/decor/sweden.png"), decor.graphicFile)
-        assertEquals(300.0, decor.graphicHeight)
         assertEquals("Tibo's uitzwaai feestje", decor.titleText)
         assertEquals(File("config/decor/title.ttf"), decor.titleFontFile)
         assertEquals(72.0, decor.titleSize)
         assertEquals("#1f3b63", decor.titleColor)
+        assertEquals(DecorPosition.TOP_CENTER, decor.titlePosition)
         assertTrue(!decor.isEmpty)
     }
 
@@ -66,26 +101,12 @@ class DecorConfigTest {
         assertEquals(DecorPosition.TOP_CENTER, DecorPosition.parse("top-center"))
         assertEquals(DecorPosition.BOTTOM_RIGHT, DecorPosition.parse("BOTTOM_RIGHT"))
         assertEquals(DecorPosition.CENTER, DecorPosition.parse("  Center "))
-
-        val decor = DecorConfig.from(props("decor.graphic.position" to "bottom-left", "decor.title.position" to "top-right"))
-        assertEquals(DecorPosition.BOTTOM_LEFT, decor.graphicPosition)
-        assertEquals(DecorPosition.TOP_RIGHT, decor.titlePosition)
+        assertEquals(DecorPosition.CENTER_RIGHT, DecorPosition.parse("center-right"))
     }
 
     @Test
     fun `an unknown position fails with the allowed values listed`() {
         val e = assertFailsWith<IllegalStateException> { DecorPosition.parse("middle-ish") }
         assertTrue(e.message!!.contains("top-left") && e.message!!.contains("bottom-center"), e.message)
-    }
-
-    @Test
-    fun `defaults fill in for the numeric and position keys when only text is set`() {
-        val decor = DecorConfig.from(props("decor.title.text" to "Party"))
-
-        assertEquals(DecorConfig.NONE.titleSize, decor.titleSize)
-        assertEquals(DecorConfig.NONE.graphicHeight, decor.graphicHeight)
-        assertEquals(DecorConfig.NONE.titleColor, decor.titleColor)
-        assertEquals(DecorConfig.NONE.graphicPosition, decor.graphicPosition)
-        assertEquals(DecorConfig.NONE.titlePosition, decor.titlePosition)
     }
 }

@@ -42,7 +42,8 @@ needs, are split out per subsystem:
 | [`docs/camera-and-preview.md`](docs/camera-and-preview.md) | Camera backends (`pi` / `webcam` / `placeholder`), the live self-view streams vs. the still-grab fallback, and the capture-vs-preview race |
 | [`docs/download-server-and-tunnel.md`](docs/download-server-and-tunnel.md) | The embedded HTTP server, its phone-facing routes (`/p`, `/last`, …), and the Cloudflare quick tunnel that exposes it |
 | [`docs/phone-pages.md`](docs/phone-pages.md) | The pages a guest's phone opens, and rebranding them per event (`config/web/`, `/preview`) |
-| [`docs/screen-decoration.md`](docs/screen-decoration.md) | Dressing the kiosk idle screen per event — bunting, a graphic, a titled font (`config/decor/`) |
+| [`docs/screen-decoration.md`](docs/screen-decoration.md) | Dressing the kiosk idle screen per event — bunting, a graphic, a titled font, QR positions, `config/kiosk/kiosk.css` |
+| [`docs/customising.md`](docs/customising.md) | The full list of what you can change per event without a rebuild, and `./gradlew seedConfig` |
 | [`docs/overlays.md`](docs/overlays.md) | Overlay compositing and the optional phone-side layout picker |
 | [`docs/gpio.md`](docs/gpio.md) | The arcade button and "lighting ok" LED wiring and pins |
 | [`docs/remote-start.md`](docs/remote-start.md) | Taking the photo from the phone's layout page, and getting the result back automatically |

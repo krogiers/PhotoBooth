@@ -3,44 +3,66 @@ package com.photobooth.config
 import java.io.File
 import java.util.Properties
 
-/** Where a decoration is anchored on the idle screen. Parsed from `top-left`, `bottom-center`, … */
+/**
+ * Where something is anchored on the idle screen — a decoration
+ * ([DecorConfig]) or a fixed element like a QR code ([KioskLayout]). Parsed
+ * from `top-left`, `center-right`, `bottom-center`, …
+ */
 enum class DecorPosition {
-    TOP_LEFT, TOP_CENTER, TOP_RIGHT, CENTER, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT;
+    TOP_LEFT, TOP_CENTER, TOP_RIGHT,
+    CENTER_LEFT, CENTER, CENTER_RIGHT,
+    BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT;
 
     companion object {
         fun parse(value: String): DecorPosition {
             val norm = value.trim().replace('-', '_')
             return entries.firstOrNull { it.name.equals(norm, ignoreCase = true) }
                 ?: error(
-                    "Unknown decor position '$value' — expected one of " +
+                    "Unknown position '$value' — expected one of " +
                         entries.joinToString { it.name.lowercase().replace('_', '-') }
                 )
         }
     }
 }
 
+/** A width or height: a plain number is px, a trailing `%` makes it a fraction of the screen. */
+data class DecorSize(val amount: Double, val percentOfScreen: Boolean) {
+    companion object {
+        fun parse(raw: String?): DecorSize? = raw?.trim()?.ifBlank { null }?.let {
+            if (it.endsWith("%")) DecorSize(it.dropLast(1).trim().toDouble() / 100.0, percentOfScreen = true)
+            else DecorSize(it.toDouble(), percentOfScreen = false)
+        }
+    }
+}
+
 /**
- * Per-event dressing for the JavaFX idle screen — a bunting garland across the
- * top, one free-placed graphic (a landmark, mascot, …), and a title in a
- * custom font. Everything is optional and comes from `config/decor/` with no
- * rebuild, the same override idea as `config/web/` and `config/i18n/`. With
- * nothing configured the idle screen looks exactly as before.
+ * One image layer on the idle screen. Give a [width] or a [height] (the other
+ * scales proportionally); give both to stretch. [rotate] is degrees clockwise
+ * about the image's centre — e.g. `-12` tilts bunting up towards a corner.
+ */
+data class DecorItem(
+    val file: File,
+    val position: DecorPosition,
+    val width: DecorSize?,
+    val height: DecorSize?,
+    val rotate: Double,
+)
+
+/**
+ * Per-event dressing for the JavaFX idle screen — a list of freely-placed
+ * image layers (`decor.<n>.*`) plus an optional text title (`decor.title.*`).
+ * Everything optional, all from `config/decor/` with no rebuild, the same
+ * override idea as `config/web/` and `config/i18n/`. With nothing configured
+ * the idle screen looks exactly as before.
  *
- * Kept free of JavaFX types on purpose (like the rest of `config/`): the
- * colour string and font file are resolved to `Color` / `Font` in
+ * Kept free of JavaFX types on purpose (like the rest of `config/`): sizes,
+ * colour and font file are resolved to bindings / `Color` / `Font` in
  * [com.photobooth.ui.BoothView].
  */
 data class DecorConfig(
-    /** Stretched across the top edge; null = no garland. */
-    val buntingFile: File?,
-    /** How tall the garland is drawn, in px. */
-    val buntingHeight: Double,
-    /** A single free-placed graphic; null = none. */
-    val graphicFile: File?,
-    val graphicPosition: DecorPosition,
-    /** Drawn this tall in px, scaled proportionally. */
-    val graphicHeight: Double,
-    /** Shown as a heading somewhere on the screen; null/blank = no title. */
+    /** Drawn back-to-front; a missing file is skipped (logged) at render time. */
+    val items: List<DecorItem>,
+    /** Shown as a heading; null/blank = no text title (an image layer can be the title instead). */
     val titleText: String?,
     /** `.ttf` / `.otf` for [titleText]; null = the default UI font. */
     val titleFontFile: File?,
@@ -50,16 +72,14 @@ data class DecorConfig(
     val titlePosition: DecorPosition,
 ) {
     /** True when there is nothing at all to draw. */
-    val isEmpty: Boolean
-        get() = buntingFile == null && graphicFile == null && titleText.isNullOrBlank()
+    val isEmpty: Boolean get() = items.isEmpty() && titleText.isNullOrBlank()
 
     companion object {
+        /** How many `decor.<n>.*` layers are scanned for. */
+        private const val MAX_ITEMS = 20
+
         val NONE = DecorConfig(
-            buntingFile = null,
-            buntingHeight = 140.0,
-            graphicFile = null,
-            graphicPosition = DecorPosition.BOTTOM_RIGHT,
-            graphicHeight = 240.0,
+            items = emptyList(),
             titleText = null,
             titleFontFile = null,
             titleSize = 64.0,
@@ -69,21 +89,25 @@ data class DecorConfig(
 
         fun from(props: Properties): DecorConfig {
             fun str(key: String) = props.getProperty(key, "").trim().ifBlank { null }
-            fun file(key: String) = str(key)?.let(::File)
-            fun num(key: String, default: Double) = str(key)?.toDouble() ?: default
-            fun pos(key: String, default: DecorPosition) = str(key)?.let(DecorPosition::parse) ?: default
+
+            val items = (1..MAX_ITEMS).mapNotNull { n ->
+                val file = str("decor.$n.file")?.let(::File) ?: return@mapNotNull null
+                DecorItem(
+                    file = file,
+                    position = str("decor.$n.position")?.let(DecorPosition::parse) ?: DecorPosition.CENTER,
+                    width = DecorSize.parse(str("decor.$n.width")),
+                    height = DecorSize.parse(str("decor.$n.height")),
+                    rotate = str("decor.$n.rotate")?.toDouble() ?: 0.0,
+                )
+            }
 
             return DecorConfig(
-                buntingFile = file("decor.bunting.file"),
-                buntingHeight = num("decor.bunting.height", NONE.buntingHeight),
-                graphicFile = file("decor.graphic.file"),
-                graphicPosition = pos("decor.graphic.position", NONE.graphicPosition),
-                graphicHeight = num("decor.graphic.height", NONE.graphicHeight),
+                items = items,
                 titleText = str("decor.title.text"),
-                titleFontFile = file("decor.title.font"),
-                titleSize = num("decor.title.size", NONE.titleSize),
+                titleFontFile = str("decor.title.font")?.let(::File),
+                titleSize = str("decor.title.size")?.toDouble() ?: NONE.titleSize,
                 titleColor = str("decor.title.color") ?: NONE.titleColor,
-                titlePosition = pos("decor.title.position", NONE.titlePosition),
+                titlePosition = str("decor.title.position")?.let(DecorPosition::parse) ?: NONE.titlePosition,
             )
         }
     }

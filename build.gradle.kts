@@ -61,6 +61,38 @@ tasks.register<JavaExec>("renderPhonePages") {
     mainClass.set("com.photobooth.server.PhonePagesPreviewKt")
 }
 
+// Copy the bundled overridable resources (i18n, phone-page templates, kiosk CSS) into config/
+// as an editable per-event starting point. Existing config/ files are left untouched.
+tasks.register("seedConfig") {
+    group = "photobooth"
+    description = "Write the bundled i18n / web / kiosk defaults into config/ so they can be edited without a rebuild."
+    val projectDir = layout.projectDirectory
+    doLast {
+        val seeds = listOf(
+            "src/main/resources/i18n/en.properties" to "config/i18n/en.properties",
+            "src/main/resources/i18n/nl.properties" to "config/i18n/nl.properties",
+            "src/main/resources/web/photo.mustache" to "config/web/photo.mustache",
+            "src/main/resources/web/choose.mustache" to "config/web/choose.mustache",
+            "src/main/resources/web/message.mustache" to "config/web/message.mustache",
+            "src/main/resources/web/style.css" to "config/web/style.css",
+            "src/main/resources/kiosk/kiosk.css" to "config/kiosk/kiosk.css",
+        )
+        var written = 0
+        seeds.forEach { (from, to) ->
+            val dst = projectDir.file(to).asFile
+            if (dst.exists()) {
+                logger.lifecycle("  keep  $to (already there)")
+            } else {
+                dst.parentFile.mkdirs()
+                projectDir.file(from).asFile.copyTo(dst)
+                logger.lifecycle("  seed  $to")
+                written++
+            }
+        }
+        logger.lifecycle("seedConfig: $written written, ${seeds.size - written} left as-is. Edit these, then restart the app — no rebuild.")
+    }
+}
+
 kotlin {
     jvmToolchain(17)
 }

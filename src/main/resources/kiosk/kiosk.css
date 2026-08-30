@@ -1,23 +1,118 @@
 /*
- * Look of the kiosk's standalone message screens — the "starting…" splash and
- * the startup-error screen.
+ * Look of the kiosk screens. Every colour, font, weight, size, shadow and
+ * background the app draws is a rule here — nothing is hard-coded in Kotlin —
+ * so an event can restyle the booth without a rebuild.
  *
- * To restyle per event, drop your own file at config/kiosk/kiosk.css — it is
- * layered on top of this one (no rebuild), so you only need the rules you want
- * to change. JavaFX CSS: properties are `-fx-` prefixed; `@font-face` with
- * `src: url("config/kiosk/yourfont.ttf")` works if you want a custom font.
+ * To override per event, drop your own file at config/kiosk/kiosk.css: it is
+ * layered on top of this one, so you only need the rules you want to change.
+ * JavaFX CSS: properties are `-fx-` prefixed; `@font-face { src: url("config/kiosk/yourfont.ttf"); }`
+ * then `-fx-font-family: "Your Font";` works for a custom font.
+ *
+ * Each rule below notes where its class is applied. The only visual values
+ * NOT here are three ImageView pixel widths (QR tiles + result photo/QR) —
+ * JavaFX can't size an ImageView from CSS; they're named constants at the
+ * bottom of ui/BoothView.kt.
  */
 
+/* =====================================================================
+ * Message screens — Main.kt · PhotoBoothApp.messagePane()
+ * The "Starting…" splash and the startup-error screen.
+ * ===================================================================== */
+
+/* the full-screen StackPane behind the message */
 .kiosk-root {
     -fx-background-color: #101014;
     -fx-alignment: center;
     -fx-padding: 48;
 }
 
+/* the message Label itself (its max-width is bound to 80% of the screen in code) */
 .kiosk-message {
     -fx-font-size: 32px;
     -fx-text-fill: #f2f2f5;
-    -fx-text-alignment: center;   /* wrap alignment across lines */
+    -fx-text-alignment: center;   /* alignment across wrapped lines */
     -fx-alignment: center;        /* the text block within the (wide) label — keeps it centred */
     -fx-wrap-text: true;
+}
+
+/* =====================================================================
+ * Countdown — ui/BoothView.kt · fields `countdownLabel` / `countdownBadge`,
+ * shown by showCountdown(); sits centred over the live self-view.
+ * ===================================================================== */
+
+/* the big digit "3 / 2 / 1", then the random smile word */
+.countdown-number {
+    -fx-font-size: 160px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, black, 20, 0, 0, 0);
+}
+
+/* the solid disc behind the digit, so it stays legible over any camera frame */
+.countdown-badge {
+    -fx-background-color: rgba(0, 0, 0, 0.55);
+    -fx-background-radius: 1000;
+    -fx-min-width: 360; -fx-max-width: 360;
+    -fx-min-height: 360; -fx-max-height: 360;
+}
+
+/* =====================================================================
+ * Idle screen — ui/BoothView.kt · buildIdleOverlay() / buildDecorLayer() / qrTile()
+ * ===================================================================== */
+
+/* the "Tap to start" label, bottom-centre (buildIdleOverlay) */
+.tap-hint {
+    -fx-font-size: 48px;
+    -fx-text-fill: white;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, black, 15, 0, 0, 0);
+}
+
+/* one QR block = the VBox of QR image + caption, one against each screen edge (qrTile) */
+.qr-tile {
+    -fx-spacing: 6;
+    -fx-alignment: center;
+}
+
+/* the caption under a QR ("Scan to choose your layout" / "Missed your QR?") (qrTile) */
+.qr-caption {
+    -fx-font-size: 16px;
+    -fx-text-fill: white;
+    -fx-max-width: 240;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, black, 10, 0, 0, 0);
+}
+
+/* the per-event decor title (buildDecorLayer) — only the shadow is here;
+   its text / font / colour / position come from the decor.* config keys */
+.decor-title {
+    -fx-effect: dropshadow(gaussian, black, 12, 0, 0, 0);
+}
+
+/* =====================================================================
+ * Result screen — ui/BoothView.kt · showResult()
+ * Shown for result.display.seconds after a shot: photo + download QR.
+ * ===================================================================== */
+
+/* the dark Region that dims the frozen self-view behind the result */
+.result-scrim {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* the VBox holding the photo, the QR and the caption, centred */
+.result-content {
+    -fx-spacing: 16;
+    -fx-alignment: center;
+}
+
+/* the "Scan to download your photo" line under the QR */
+.result-caption {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, black, 10, 0, 0, 0);
 }

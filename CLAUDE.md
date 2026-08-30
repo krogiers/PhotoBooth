@@ -13,6 +13,8 @@ un-merged photo is always kept alongside it.
 The project is currently a first working scaffold (see README.md "Status"):
 all pieces build and are wired together, but pin numbers, camera settings,
 and UI styling are still placeholders to be tuned against real hardware.
+Open bugs from the last review are tracked in
+[`docs/known-issues.md`](docs/known-issues.md).
 
 ## Commands
 
@@ -23,6 +25,7 @@ and UI styling are still placeholders to be tuned against real hardware.
 ./gradlew test --tests "com.photobooth.imaging.OverlayCompositorTest"   # single test class
 ./gradlew installDist     # build a runnable distribution under build/install/photobooth/
 ./gradlew renderPhonePages # render the phone-facing pages (sample data) to build/phone-pages-preview/
+./gradlew seedConfig      # copy the bundled i18n / web / kiosk defaults into config/ for editing
 ```
 
 On the Raspberry Pi itself, use `installDist` and run
@@ -34,12 +37,13 @@ Config lives in `config/photobooth.properties` (git-ignored; copy from
 `config/photobooth.properties.example`), covering GPIO pin numbers,
 countdown length, and the local `server.port` the download server listens
 on. `config/overlay.png` is the transparent PNG merged onto every capture.
-Optional per-event overrides — no rebuild — also layer in from `config/`:
-`config/i18n/<lang>.properties` (wording), `config/web/` (phone-page styling
-+ templates), `config/overlays/` (selectable overlays), `config/decor/`
-(idle-screen bunting / graphic / title font), `config/kiosk/kiosk.css`
-(splash / error screen styling) — see `decor.*` keys and
-[`docs/screen-decoration.md`](docs/screen-decoration.md).
+Optional per-event overrides — no rebuild, read at startup — also layer in
+from `config/`: `config/i18n/<lang>.properties` (wording + extra languages),
+`config/web/` (phone-page templates + CSS), `config/overlays/` (selectable
+overlays), `config/decor/` (idle-screen bunting / graphic / title font),
+`config/kiosk/kiosk.css` (all kiosk-screen styling). `./gradlew seedConfig`
+seeds those from the bundled defaults;
+[`docs/customising.md`](docs/customising.md) is the full list.
 
 ## Architecture
 
@@ -122,12 +126,12 @@ interface(s) in the package root and every implementation one level down in
   [`docs/remote-start.md`](docs/remote-start.md)) to the same `PhotoSession`
   run. The self-view fills the real display (fit sizes bound to the root),
   and each frame reuses one `PixelBuffer` surface instead of a fresh `Image`.
-- `config/AppConfig.kt` (+ `config/DecorConfig.kt`) — loads
-  `config/photobooth.properties` (falling back to defaults so the app runs on
-  a dev machine without any hardware attached), derives a per-session folder
-  `data/<date>/` (or `data.subdir`) with `originals/` and `merged/` under it
-  so back-to-back events stay separate, and parses the `decor.*` idle-screen
-  keys. Kept free of JavaFX types.
+- `config/AppConfig.kt` (+ `config/DecorConfig.kt`, `config/KioskLayout.kt`) —
+  loads `config/photobooth.properties` (falling back to defaults so the app
+  runs on a dev machine without any hardware attached), derives a per-session
+  folder `data/<date>/` (or `data.subdir`) with `originals/` and `merged/`
+  under it so back-to-back events stay separate, and parses the `decor.*` and
+  `kiosk.*.position` idle-screen keys. Kept free of JavaFX types.
 
 Data flow through `PhotoSession.run()`: countdown ticks drive the UI via
 `onCountdownTick`, then the original photo is written to

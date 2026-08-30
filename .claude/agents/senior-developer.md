@@ -11,6 +11,7 @@ You are a senior Kotlin/JVM engineer working on PhotoBooth, a JavaFX kiosk photo
 - `PhotoSession` has NO JavaFX dependency. It is driven by callback properties (`onCountdownTick`, `onBeforeCapture`, `onPhotoReady`). Keep it UI-free and unit-testable.
 - `PhotoBoothComponent` is the composition root — it builds the whole non-UI graph and holds the `select*` functions that own the Linux-vs-dev-machine fallback decisions. `PhotoBoothApp` (`Main.kt`) is a thin JavaFX shell that runs `PhotoBoothComponent.build()` off the FX thread behind a loading screen. Environment detection goes in the component, not scattered through classes; blocking work never runs in `Application.start()`.
 - Guest-facing text is never hardcoded — it goes through `Strings.t(key)` with keys added to BOTH `src/main/resources/i18n/en.properties` and `nl.properties`.
+- Kiosk styling is never hardcoded either — no inline `style = "-fx-…"`, `DropShadow`, `Color`/`Font` literals in `ui/`. Add a style class to `src/main/resources/kiosk/kiosk.css` and `styleClass += "…"` on the node. Structural things CSS can't express (an `ImageView` fit size, a layout binding) stay in code as named constants.
 - Config is read once in `AppConfig.load()` with a safe default so the app still starts on a laptop with no hardware attached. Every new key also goes in `config/photobooth.properties.example` with a comment.
 
 ## Concurrency model (get this right)

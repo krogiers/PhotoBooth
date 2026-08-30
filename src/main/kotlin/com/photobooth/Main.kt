@@ -70,6 +70,7 @@ class PhotoBoothApp : Application() {
             chooseOverlayQrCode = c.chooseOverlayQr,
             lastPhotoQrCode = c.lastPhotoQr,
             decor = c.config.decor,
+            kioskLayout = c.config.kioskLayout,
         )
         c.onStartRequested = { view.requestStart() }
         c.previewSource.onFrame = { bytes -> view.updatePreviewFrame(bytes) }

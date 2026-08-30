@@ -6,6 +6,9 @@ out/
 # Per-booth configuration (pins, host, etc.) — copy from photobooth.properties.example
 config/photobooth.properties
 
+# Per-event text overrides / extra languages — seed with `./gradlew seedConfig`
+config/i18n/
+
 # Per-event phone-page branding (overrides src/main/resources/web/) — style.css, logo.*, templates
 config/web/
 

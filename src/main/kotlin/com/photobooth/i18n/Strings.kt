@@ -33,6 +33,19 @@ class Strings private constructor(private val translations: Map<String, String>)
         return if (args.isEmpty()) template else String.format(template, *args)
     }
 
+    /**
+     * A value read as a small list of options, split on [delimiter], trimmed,
+     * blanks dropped. For keys that hold a set to choose from — e.g.
+     * `smile_words`, the shout shown when the shutter fires; an operator
+     * manages the set by editing that one line in `config/i18n/<lang>.properties`.
+     *
+     * Unlike [t], a missing key just yields an empty list rather than
+     * throwing — a missing *list* means "no options", not a bug. Callers
+     * decide the fallback (e.g. `list("smile_words").ifEmpty { … }`).
+     */
+    fun list(key: String, delimiter: Char = ','): List<String> =
+        (translations[key] ?: "").split(delimiter).map(String::trim).filter(String::isNotEmpty)
+
     companion object {
         private const val FALLBACK_LANGUAGE = "en"
 

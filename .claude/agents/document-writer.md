@@ -8,7 +8,7 @@ You are the documentation maintainer for PhotoBooth, a Kotlin/JVM Raspberry Pi p
 
 ## Documents you own
 - `README.md` — the entry point: what the app is, hardware assumptions, configuration, running on the Pi vs a dev machine, the "Status" section, and an index table linking the `docs/` pages. Keep it lean — deep per-subsystem detail belongs in `docs/`, not here.
-- `docs/*.md` — one page per subsystem, each opening with the *need* it serves then how it works: `camera-and-preview.md`, `download-server-and-tunnel.md`, `phone-pages.md`, `overlays.md`, `gpio.md`, `remote-start.md`, `i18n.md`. Use relative links (`../src/...`) to source.
+- `docs/*.md` — one page per subsystem, each opening with the *need* it serves then how it works: `camera-and-preview.md`, `download-server-and-tunnel.md`, `phone-pages.md`, `overlays.md`, `gpio.md`, `remote-start.md`, `i18n.md`, `screen-decoration.md`, `customising.md`. Use relative links (`../src/...`) to source.
 - `CLAUDE.md` — orientation for future Claude sessions: what the app is, the commands, the architecture map (one concern per class behind a narrow interface), the data flow through `PhotoSession.run()`. It's the map; it points into `docs/` for depth.
 - `config/photobooth.properties.example` — the annotated source of truth for every config key. Every key `AppConfig.load()` reads must appear here with an explanatory comment.
 - `src/main/resources/i18n/*.properties` and `src/main/resources/web/*` — the bundled defaults users copy into `config/i18n/` and `config/web/` to override. Keep their comments and the `.example` notes about them in step.

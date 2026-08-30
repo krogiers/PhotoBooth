@@ -3,6 +3,7 @@ package com.photobooth.ui
 import com.photobooth.camera.PreviewSource
 import com.photobooth.config.DecorConfig
 import com.photobooth.config.DecorPosition
+import com.photobooth.config.KioskLayout
 import com.photobooth.i18n.Strings
 import com.photobooth.session.PhotoSession
 import com.photobooth.util.daemonExecutor
@@ -11,21 +12,18 @@ import javafx.animation.ScaleTransition
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.Node
 import javafx.scene.control.Label
-import javafx.scene.effect.DropShadow
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.scene.image.PixelBuffer
 import javafx.scene.image.PixelFormat
 import javafx.scene.image.WritableImage
-import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Region
 import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
-import javafx.scene.shape.Circle
 import javafx.scene.text.Font
-import javafx.scene.text.TextAlignment
 import javafx.stage.Stage
 import javafx.util.Duration
 import org.slf4j.LoggerFactory
@@ -65,6 +63,8 @@ class BoothView(
     private val chooseOverlayQrCode: ByteArray? = null,
     private val lastPhotoQrCode: ByteArray? = null,
     private val decor: DecorConfig = DecorConfig.NONE,
+    /** Where the two QRs and "tap to start" sit on the idle screen — see [KioskLayout]. */
+    private val kioskLayout: KioskLayout = KioskLayout.DEFAULT,
 ) {
     // fitWidth/fitHeight are bound to the scene-graph root in show(), so the self-view fills
     // whatever display the kiosk actually runs on rather than assuming one resolution.
@@ -84,13 +84,9 @@ class BoothView(
 
     // A solid badge behind the countdown number/"Smile!" so it stays legible over any camera
     // background, rather than relying on a drop shadow alone against a live, unpredictable feed.
-    private val countdownBadge = Circle(180.0, Color.rgb(0, 0, 0, 0.55))
-    private val countdownLabel = Label().apply {
-        style = "-fx-font-size: 160px; -fx-font-weight: bold; -fx-text-fill: white;"
-        textAlignment = TextAlignment.CENTER
-        alignment = Pos.CENTER
-        effect = DropShadow(20.0, 0.0, 0.0, Color.BLACK)
-    }
+    // Styled by `.countdown-badge` / `.countdown-number` in kiosk.css.
+    private val countdownBadge = Region().apply { styleClass += "countdown-badge" }
+    private val countdownLabel = Label().apply { styleClass += "countdown-number" }
     private val log = LoggerFactory.getLogger(BoothView::class.java)
     private val idleOverlay = buildIdleOverlay()
     private val countdownOverlay = StackPane(countdownBadge, countdownLabel).apply {
@@ -110,6 +106,10 @@ class BoothView(
     private val sessionExecutor = daemonExecutor("photo-session")
     private val resultTimer = daemonScheduler("result-timer")
     private var pendingDismiss: ScheduledFuture<*>? = null
+
+    // The shout shown when the shutter fires — one picked at random per shoot from the
+    // `smile_words` list (managed per event in config/i18n/<lang>.properties).
+    private val smileWords: List<String> = strings.list("smile_words").ifEmpty { listOf("Smile!") }
 
     fun show() {
         root.setOnMouseClicked { startSession() }
@@ -208,83 +208,62 @@ class BoothView(
 
     /**
      * The idle screen: a per-event [decor] layer (bunting, graphic, title)
-     * behind the functional layer, which is a [BorderPane] with the two QRs
-     * one against each edge — "choose your layout" left, "missed your QR?"
-     * recovery right — and "Tap to start" alone, front and centre. A
-     * BorderPane (not alignment constraints) so each region genuinely hugs
-     * its edge regardless of screen size; both layers let a tap anywhere but
-     * on a QR fall through to start a shoot.
+     * behind the functional layer. The two QRs and "Tap to start" are placed
+     * by alignment from [kioskLayout] (`kiosk.*.position` config), each with a
+     * small edge inset. Empty areas of both layers don't pick, so a tap
+     * anywhere but on a QR falls through to start a shoot.
      */
     private fun buildIdleOverlay(): StackPane {
-        val tapToStart = Label(strings.t("tap_to_start")).apply {
-            style = "-fx-font-size: 48px; -fx-text-fill: white;"
-            textAlignment = TextAlignment.CENTER
-            effect = DropShadow(15.0, Color.BLACK)
+        val functional = StackPane()
+
+        fun place(node: Node, at: DecorPosition) {
+            StackPane.setAlignment(node, at.toPos())
+            StackPane.setMargin(node, EDGE_INSET)
+            functional.children.add(node)
         }
 
-        val functional = BorderPane().apply {
-            chooseOverlayQrCode?.let { qr ->
-                left = qrTile(qr, strings.t("scan_choose_overlay")).also {
-                    BorderPane.setAlignment(it, Pos.CENTER)
-                    BorderPane.setMargin(it, Insets(0.0, 0.0, 0.0, 40.0))
-                }
-            }
-            lastPhotoQrCode?.let { qr ->
-                right = qrTile(qr, strings.t("scan_last_photo")).also {
-                    BorderPane.setAlignment(it, Pos.CENTER)
-                    BorderPane.setMargin(it, Insets(0.0, 40.0, 0.0, 0.0))
-                }
-            }
-            bottom = StackPane(tapToStart).also {
-                BorderPane.setMargin(it, Insets(0.0, 0.0, 48.0, 0.0))
-            }
-        }
+        chooseOverlayQrCode?.let { place(qrTile(it, strings.t("scan_choose_overlay")), kioskLayout.layoutQr) }
+        lastPhotoQrCode?.let { place(qrTile(it, strings.t("scan_last_photo")), kioskLayout.recoveryQr) }
+        place(Label(strings.t("tap_to_start")).apply { styleClass += "tap-hint" }, kioskLayout.tapHint)
 
         return StackPane(buildDecorLayer(), functional)
     }
 
     /**
-     * Per-event idle-screen dressing from [decor] — a bunting garland stretched
-     * across the top, one free-placed graphic, and a title in a custom font.
-     * All optional; a missing/broken file is logged and skipped rather than
-     * crashing the kiosk. The whole layer is mouse-transparent so it never
-     * eats a tap.
+     * Per-event idle-screen dressing from [decor] — a back-to-front list of
+     * freely-placed, optionally-rotated image layers ([DecorConfig.items]),
+     * plus an optional text title. A missing/broken file is logged and
+     * skipped rather than crashing the kiosk. The whole layer is
+     * mouse-transparent so it never eats a tap.
      */
     private fun buildDecorLayer(): StackPane {
         val layer = StackPane().apply { isMouseTransparent = true }
         if (decor.isEmpty) return layer
 
-        decor.buntingFile?.let { file ->
-            loadDecorImage(file, "bunting")?.let { img ->
-                val view = ImageView(img).apply {
-                    isPreserveRatio = false
-                    fitHeight = decor.buntingHeight
-                    fitWidthProperty().bind(layer.widthProperty())
+        for (item in decor.items) {
+            val img = loadDecorImage(item.file) ?: continue
+            val view = ImageView(img).apply {
+                isPreserveRatio = !(item.width != null && item.height != null)
+                rotate = item.rotate
+                item.width?.let { w ->
+                    if (w.percentOfScreen) fitWidthProperty().bind(layer.widthProperty().multiply(w.amount))
+                    else fitWidth = w.amount
                 }
-                StackPane.setAlignment(view, Pos.TOP_CENTER)
-                layer.children.add(view)
-            }
-        }
-
-        decor.graphicFile?.let { file ->
-            loadDecorImage(file, "graphic")?.let { img ->
-                val view = ImageView(img).apply {
-                    isPreserveRatio = true
-                    fitHeight = decor.graphicHeight
+                item.height?.let { h ->
+                    if (h.percentOfScreen) fitHeightProperty().bind(layer.heightProperty().multiply(h.amount))
+                    else fitHeight = h.amount
                 }
-                StackPane.setAlignment(view, decor.graphicPosition.toPos())
-                StackPane.setMargin(view, Insets(24.0))
-                layer.children.add(view)
             }
+            StackPane.setAlignment(view, item.position.toPos())
+            layer.children.add(view)
         }
 
         decor.titleText?.takeIf { it.isNotBlank() }?.let { text ->
             val label = Label(text).apply {
+                styleClass += "decor-title" // shadow in kiosk.css; font / colour / position from decor.*
+                isWrapText = true
                 font = decorFont(decor.titleFontFile, decor.titleSize)
                 textFill = runCatching { Color.web(decor.titleColor) }.getOrDefault(Color.WHITE)
-                effect = DropShadow(12.0, Color.BLACK)
-                textAlignment = TextAlignment.CENTER
-                isWrapText = true
             }
             StackPane.setAlignment(label, decor.titlePosition.toPos())
             StackPane.setMargin(label, Insets(28.0))
@@ -294,13 +273,13 @@ class BoothView(
         return layer
     }
 
-    private fun loadDecorImage(file: File, what: String): Image? {
+    private fun loadDecorImage(file: File): Image? {
         if (!file.isFile) {
-            log.warn("decor: {} file not found: {}", what, file.absolutePath)
+            log.warn("decor: file not found: {}", file.absolutePath)
             return null
         }
         return runCatching { Image(file.toURI().toString()) }
-            .onFailure { log.warn("decor: could not load {} image {} ({})", what, file.absolutePath, it.message) }
+            .onFailure { log.warn("decor: could not load image {} ({})", file.absolutePath, it.message) }
             .getOrNull()
     }
 
@@ -321,23 +300,19 @@ class BoothView(
         DecorPosition.TOP_LEFT -> Pos.TOP_LEFT
         DecorPosition.TOP_CENTER -> Pos.TOP_CENTER
         DecorPosition.TOP_RIGHT -> Pos.TOP_RIGHT
+        DecorPosition.CENTER_LEFT -> Pos.CENTER_LEFT
         DecorPosition.CENTER -> Pos.CENTER
+        DecorPosition.CENTER_RIGHT -> Pos.CENTER_RIGHT
         DecorPosition.BOTTOM_LEFT -> Pos.BOTTOM_LEFT
         DecorPosition.BOTTOM_CENTER -> Pos.BOTTOM_CENTER
         DecorPosition.BOTTOM_RIGHT -> Pos.BOTTOM_RIGHT
     }
 
     private fun qrTile(qrPng: ByteArray, caption: String): VBox {
-        val image = ImageView(Image(ByteArrayInputStream(qrPng))).apply { fitWidth = 160.0; isPreserveRatio = true }
-        val label = Label(caption).apply {
-            style = "-fx-font-size: 16px; -fx-text-fill: white;"
-            isWrapText = true
-            textAlignment = TextAlignment.CENTER
-            maxWidth = 240.0
-            effect = DropShadow(10.0, Color.BLACK)
-        }
-        return VBox(6.0, image, label).apply {
-            alignment = Pos.CENTER
+        val image = ImageView(Image(ByteArrayInputStream(qrPng))).apply { fitWidth = QR_TILE_WIDTH; isPreserveRatio = true }
+        val label = Label(caption).apply { styleClass += "qr-caption" }
+        return VBox(image, label).apply {
+            styleClass += "qr-tile"
             maxWidth = Region.USE_PREF_SIZE
         }
     }
@@ -346,7 +321,7 @@ class BoothView(
         idleOverlay.isVisible = false
         resultOverlay.isVisible = false
         countdownOverlay.isVisible = true
-        countdownLabel.text = if (secondsLeft > 0) secondsLeft.toString() else strings.t("smile")
+        countdownLabel.text = if (secondsLeft > 0) secondsLeft.toString() else smileWords.random()
 
         ScaleTransition(Duration.millis(280.0), countdownLabel).apply {
             fromX = 1.5; fromY = 1.5; toX = 1.0; toY = 1.0
@@ -361,17 +336,13 @@ class BoothView(
 
         val generation = resultGeneration.incrementAndGet()
 
-        val photoView = ImageView(Image(merged.toURI().toString())).apply { fitWidth = 500.0; isPreserveRatio = true }
-        val qrView = ImageView(Image(ByteArrayInputStream(qrPng))).apply { fitWidth = 200.0; isPreserveRatio = true }
-        val caption = Label(strings.t("scan_download")).apply {
-            style = "-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;"
-            textAlignment = TextAlignment.CENTER
-            effect = DropShadow(10.0, Color.BLACK)
-        }
+        val photoView = ImageView(Image(merged.toURI().toString())).apply { fitWidth = RESULT_PHOTO_WIDTH; isPreserveRatio = true }
+        val qrView = ImageView(Image(ByteArrayInputStream(qrPng))).apply { fitWidth = RESULT_QR_WIDTH; isPreserveRatio = true }
+        val caption = Label(strings.t("scan_download")).apply { styleClass += "result-caption" }
         resultOverlay.children.setAll(
-            Region().apply { style = "-fx-background-color: rgba(0,0,0,0.6);" }
+            Region().apply { styleClass += "result-scrim" }
                 .also { it.prefWidthProperty().bind(root.widthProperty()); it.prefHeightProperty().bind(root.heightProperty()) },
-            VBox(16.0, photoView, qrView, caption).apply { alignment = Pos.CENTER },
+            VBox(photoView, qrView, caption).apply { styleClass += "result-content" },
         )
         // A tap during the result screen skips the rest of the wait and returns straight to
         // idle, ready for the next group — consumed so it doesn't also start a new session
@@ -443,5 +414,16 @@ class BoothView(
             nio.put(0, argb, 0, minOf(argb.size, nio.capacity()))
             pixelBuffer.updateBuffer { null }
         }
+    }
+
+    private companion object {
+        // JavaFX can't size an ImageView from CSS, so these three widths (px) live here rather
+        // than in kiosk.css. Everything else visual is a style class in that stylesheet.
+        const val QR_TILE_WIDTH = 160.0
+        const val RESULT_PHOTO_WIDTH = 500.0
+        const val RESULT_QR_WIDTH = 200.0
+
+        /** Gap between an idle-screen element and the screen edge it's anchored to. */
+        val EDGE_INSET: Insets = Insets(40.0)
     }
 }

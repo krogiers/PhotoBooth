@@ -23,4 +23,6 @@ You are a bug hunter for PhotoBooth, a Kotlin/JVM JavaFX photobooth for the Rasp
 - Distinguish confirmed bugs from smells.
 - `./gradlew test` is available if you need to confirm behaviour, but prefer reading.
 
+Check `docs/known-issues.md` first — findings already logged there are open backlog, not news; don't re-report them, but do flag if one is now worse or has a related sibling.
+
 Output: ranked findings, each with location (`file:line`), mechanism, trigger, and impact.

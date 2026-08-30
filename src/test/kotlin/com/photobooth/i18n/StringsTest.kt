@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class StringsTest {
 
     private val keys = listOf(
-        "starting", "startup_failed", "tap_to_start", "smile", "scan_choose_overlay",
+        "starting", "startup_failed", "tap_to_start", "smile_words", "scan_choose_overlay",
         "scan_download", "server_running", "choose_overlay_page_title", "choose_overlay_heading",
         "overlay_not_found", "take_photo_button", "another_photo", "shoot_busy",
         "photo_incoming", "photo_incoming_hint", "photo_incoming_failed", "photo_page_title",
@@ -27,6 +27,34 @@ class StringsTest {
                 assertTrue(strings.t(key).isNotBlank(), "'$code' is missing a translation for '$key'")
             }
         }
+    }
+
+    @Test
+    fun `list splits a value on commas, trimmed, dropping blanks`() {
+        val overridesDir = emptyOverridesDir()
+        File(overridesDir, "en.properties").writeText("smile_words= Cheese! , Spaghetti! ,, Whisky! \n")
+
+        assertEquals(
+            listOf("Cheese!", "Spaghetti!", "Whisky!"),
+            Strings.load("en", overridesDir).list("smile_words"),
+        )
+    }
+
+    @Test
+    fun `every bundled language ships more than one smile word`() {
+        for (code in listOf("en", "nl")) {
+            assertTrue(Strings.load(code, emptyOverridesDir()).list("smile_words").size > 1, code)
+        }
+    }
+
+    @Test
+    fun `list yields an empty list for a blank or missing key, without throwing`() {
+        val overridesDir = emptyOverridesDir()
+        File(overridesDir, "en.properties").writeText("smile_words=  ,  ,\n")
+        val strings = Strings.load("en", overridesDir)
+
+        assertEquals(emptyList(), strings.list("smile_words"))       // present but blank
+        assertEquals(emptyList(), strings.list("no_such_list_key"))  // missing entirely
     }
 
     @Test
@@ -54,7 +82,7 @@ class StringsTest {
 
         assertEquals("Touch here to begin", strings.t("tap_to_start"))
         // Every other key still comes from the bundled English defaults, untouched.
-        assertEquals("Smile!", strings.t("smile"))
+        assertEquals("PhotoBooth is running.", strings.t("server_running"))
     }
 
     @Test
@@ -66,6 +94,6 @@ class StringsTest {
 
         assertEquals("Touchez pour commencer", strings.t("tap_to_start"))
         // Keys the override doesn't define fall back to English rather than crashing.
-        assertEquals("Smile!", strings.t("smile"))
+        assertEquals("PhotoBooth is running.", strings.t("server_running"))
     }
 }

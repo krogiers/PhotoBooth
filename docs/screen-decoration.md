@@ -19,57 +19,110 @@ the **idle screen only** (it's hidden during the countdown and result
 screens). A missing or unreadable file is logged and skipped — it never
 crashes the kiosk.
 
-Three independent slots, all optional:
+It's a **numbered list of image layers** plus an optional text title.
 
-| Slot | Keys | Notes |
-| --- | --- | --- |
-| **Bunting** | `decor.bunting.file`, `decor.bunting.height` | Stretched across the top edge, full width. |
-| **Graphic** | `decor.graphic.file`, `decor.graphic.position`, `decor.graphic.height` | One free-placed image, scaled proportionally to `height` px. |
-| **Title** | `decor.title.text`, `decor.title.font`, `decor.title.size`, `decor.title.color`, `decor.title.position` | `font` is a `.ttf`/`.otf`; omit it for the default UI font. `color` is `#rrggbb`. |
+### Image layers — `decor.<n>.*`
 
-`position` is one of `top-left`, `top-center`, `top-right`, `center`,
-`bottom-left`, `bottom-center`, `bottom-right`.
+Number them `decor.1.*`, `decor.2.*`, … (a gap is fine); they're drawn
+back-to-front.
+
+| Key | Meaning |
+| --- | --- |
+| `decor.<n>.file` | path to the image, e.g. `config/decor/wimpels.png` |
+| `decor.<n>.position` | `top-left` … `bottom-right` (9-way, see below) |
+| `decor.<n>.width` | `NN` px, or `NN%` of the screen width |
+| `decor.<n>.height` | `NN` px, or `NN%` of the screen height |
+| `decor.<n>.rotate` | degrees clockwise about the centre (`-12` tilts up-left) |
+
+Give a `width` **or** a `height` and the other scales proportionally; give
+both to stretch; give neither for the image's natural size.
+
+### Text title — `decor.title.*`
+
+`decor.title.text`, `.font` (a `.ttf`/`.otf`, omit for the default UI font),
+`.size`, `.color` (`#rrggbb`), `.position`. Leave `decor.title.text` blank to
+use an image layer as the title instead. Its **drop shadow** (and anything
+else CSS-expressible — rotation, opacity, a plate behind it) is the
+`.decor-title` rule in `config/kiosk/kiosk.css`, not a `decor.*` key.
+
+### Positions
+
+`top-left`, `top-center`, `top-right`, `center-left`, `center`,
+`center-right`, `bottom-left`, `bottom-center`, `bottom-right`.
+
+## Where the QRs and "tap to start" sit
+
+The two idle-screen QRs and the "Tap to start" hint are placed by
+`kiosk.*.position` keys in `config/photobooth.properties` — same position
+vocabulary as above:
+
+```properties
+kiosk.qr.layout.position=center-left     # "choose your layout" QR
+kiosk.qr.recovery.position=center-right   # "missed your QR?" recovery QR
+kiosk.taphint.position=bottom-center
+```
+
+Their *styling* (font, colour, shadow) is `.qr-tile` / `.qr-caption` /
+`.tap-hint` in `config/kiosk/kiosk.css`; these keys are only *where* they go.
 
 ## Assets
 
 Put the files in `config/decor/` (git-ignored). Names are up to you — the
 keys point at them. **Use transparent PNGs**: the idle screen shows the live
-camera self-view behind the decoration, so a white-background crop shows up
-as a white box.
-
-- Export the bunting and the graphic as their own transparent PNGs from the
-  invitation's source file (Canva / Illustrator / …), sized roughly to how
-  large they'll appear (e.g. bunting ~1600 px wide, graphic ~600 px tall).
-- Drop the title font in as `.ttf`/`.otf`.
+camera self-view behind the decoration, so a layer with an opaque or
+gradient background shows up as a rectangle. Export each element as its own
+cut-out PNG from the invitation's source file (Canva / Illustrator / …).
 
 ## Example (`config/photobooth.properties`)
 
 ```properties
-decor.bunting.file=config/decor/bunting.png
-decor.bunting.height=150
-decor.graphic.file=config/decor/sweden.png
-decor.graphic.position=bottom-right
-decor.graphic.height=280
-decor.title.text=Tibo's uitzwaai feestje
-decor.title.font=config/decor/title.ttf
-decor.title.size=60
-decor.title.color=#1f3b63
-decor.title.position=top-center
+# flags tilted into the top-left corner
+decor.1.file=config/decor/wimpels.png
+decor.1.position=top-left
+decor.1.width=48%
+decor.1.rotate=-10
+
+# the party name where a title would go
+decor.2.file=config/decor/uitzwaaifeest.png
+decor.2.position=top-center
+decor.2.width=42%
+
+# a signpost, top-right; the recovery QR sits under it
+decor.3.file=config/decor/wegwijzer.png
+decor.3.position=top-right
+decor.3.height=58%
+
+kiosk.qr.recovery.position=bottom-right
 ```
 
-## The message screens (`config/kiosk/kiosk.css`)
+## Styling every kiosk screen (`config/kiosk/kiosk.css`)
 
-The "starting…" splash and the startup-error screen are plain JavaFX styled
-by a stylesheet — the same override model as the phone pages' `config/web/`:
+**Nothing visual is hard-coded in the kiosk anymore.** Every colour, font,
+weight, size, shadow and background is a rule in a stylesheet — the same
+override model as the phone pages' `config/web/`:
 
 | Layer | Location |
 | --- | --- |
 | Bundled default | [`src/main/resources/kiosk/kiosk.css`](../src/main/resources/kiosk/kiosk.css) |
 | Per-event override | `config/kiosk/kiosk.css` (git-ignored), layered on top |
 
-Two style classes: `.kiosk-root` (the full-screen background) and
-`.kiosk-message` (the centred text). JavaFX CSS — properties are `-fx-`
-prefixed (`-fx-background-color`, `-fx-font-size`, `-fx-text-fill`, …), and
-`@font-face { src: url("config/kiosk/yourfont.ttf"); }` works for a custom
-font. Copy the two rules from the bundled file and change what you need; a
-missing/empty `config/kiosk/kiosk.css` just leaves the defaults.
+JavaFX CSS — properties are `-fx-` prefixed (`-fx-background-color`,
+`-fx-font-size`, `-fx-font-weight`, `-fx-text-fill`, `-fx-effect: dropshadow(...)`,
+…). For a custom font: `@font-face { src: url("config/kiosk/yourfont.ttf"); }`
+then `-fx-font-family: "Your Font";` on the classes you want. Copy the rules
+you want to change from the bundled file; a missing/empty override just
+leaves the defaults.
+
+| Class | Element |
+| --- | --- |
+| `.kiosk-root` / `.kiosk-message` | the "starting…" splash and startup-error screen |
+| `.countdown-number` / `.countdown-badge` | the big countdown digit / "Smile!" and the disc behind it |
+| `.tap-hint` | "Tap to start" |
+| `.qr-tile` / `.qr-caption` | an idle-screen QR block and its caption |
+| `.decor-title` | shadow on the per-event decor title (font / colour / position stay `decor.*`) |
+| `.result-scrim` / `.result-content` / `.result-caption` | the result screen's dark backdrop, layout box and "scan to download" line |
+
+The only visual values *not* in CSS are three ImageView widths (the QR tiles
+and the result photo/QR) — JavaFX can't size an `ImageView` from CSS. They're
+named constants at the bottom of
+[`BoothView.kt`](../src/main/kotlin/com/photobooth/ui/BoothView.kt).

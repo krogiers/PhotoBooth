@@ -37,6 +37,14 @@ result.display.seconds=15
 window.width=1024
 window.height=768
 
+# Where the idle screen's fixed elements sit. Position is one of:
+#   top-left | top-center | top-right | center-left | center | center-right
+#   | bottom-left | bottom-center | bottom-right
+# (styling of these is in config/kiosk/kiosk.css — this is only *where*.)
+kiosk.qr.layout.position=center-left
+kiosk.qr.recovery.position=center-right
+kiosk.taphint.position=bottom-center
+
 # How often the idle/countdown self-view grabs a fresh still from the camera.
 # Only used when there's no live preview stream available (a forced
 # placeholder/webcam camera, or macOS without ffmpeg). rpicam-still/imagesnap
@@ -92,23 +100,30 @@ remote_start.enabled=true
 # on a phone while the booth is running.
 web.brand.name=
 
-# Per-event dressing for the JavaFX idle screen. All optional; files go in
-# config/decor/ (no rebuild). Leave everything blank and the screen looks as
-# before. Use transparent PNGs so nothing shows as a white box over the
-# camera self-view.
+# Per-event dressing for the JavaFX idle screen — a numbered list of image
+# layers (decor.1.*, decor.2.*, …) plus an optional text title. All optional;
+# files go in config/decor/ (no rebuild). Use transparent PNGs so a layer
+# doesn't show as a rectangle over the live camera self-view.
 #
-# Bunting / garland, stretched across the top edge:
-decor.bunting.file=
-decor.bunting.height=140
+# Per layer:
+#   decor.<n>.file      path to the image (a gap in the numbering is fine)
+#   decor.<n>.position  top-left | top-center | top-right | center-left
+#                       | center | center-right | bottom-left | bottom-center | bottom-right
+#   decor.<n>.width     px, or NN% of the screen width  (give width OR height;
+#   decor.<n>.height    px, or NN% of the screen height   the other scales)
+#   decor.<n>.rotate    degrees clockwise about the centre (e.g. -12 tilts up-left)
 #
-# One free-placed graphic (a landmark, mascot, map, ...):
-decor.graphic.file=
-#   position: top-left | top-center | top-right | center
-#             | bottom-left | bottom-center | bottom-right
-decor.graphic.position=bottom-right
-decor.graphic.height=240
+# Example: flags tilted into the top-left corner, a title image top-centre.
+# decor.1.file=config/decor/wimpels.png
+# decor.1.position=top-left
+# decor.1.width=48%
+# decor.1.rotate=-10
+# decor.2.file=config/decor/uitzwaaifeest.png
+# decor.2.position=top-center
+# decor.2.width=42%
 #
-# A title somewhere on the screen, optionally in a custom font:
+# An optional text title (leave decor.title.text blank to use an image instead).
+# Its shadow etc. is the `.decor-title` rule in config/kiosk/kiosk.css.
 decor.title.text=
 decor.title.font=
 decor.title.size=64
