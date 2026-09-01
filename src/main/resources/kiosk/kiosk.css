@@ -116,3 +116,69 @@
     -fx-text-alignment: center;
     -fx-effect: dropshadow(gaussian, black, 10, 0, 0, 0);
 }
+
+/* =====================================================================
+ * Picker screen (optional 2nd display) — ui/PickerView.kt
+ * The layout gallery + the red "take the photo" button. secondscreen.enabled.
+ * ===================================================================== */
+
+/* the full-screen background of the picker window */
+.picker-root {
+    -fx-background-color: #101014;
+}
+
+/* the heading above the gallery ("Kies je lay-out en neem de foto") */
+.picker-heading {
+    -fx-font-size: 34px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #f2f2f5;
+    -fx-padding: 28 0 20 0;
+    -fx-alignment: center;
+}
+
+.picker-scroll {
+    -fx-background-color: transparent;
+    -fx-padding: 0 24 0 24;
+}
+.picker-scroll > .viewport { -fx-background-color: transparent; }
+
+/* the gallery of layout thumbnails */
+.picker-grid {
+    -fx-padding: 12;
+}
+
+/* one thumbnail tile (image + name); .selected marks the active layout */
+.picker-tile {
+    -fx-background-color: #1c1c22;
+    -fx-background-radius: 12;
+    -fx-padding: 12;
+}
+.picker-tile:hover  { -fx-background-color: #26262e; }
+.picker-tile.selected {
+    -fx-border-color: #f4c430;
+    -fx-border-width: 4;
+    -fx-border-radius: 12;
+}
+.picker-label {
+    -fx-font-size: 18px;
+    -fx-text-fill: #f2f2f5;
+}
+
+/* the bar holding the shoot button */
+.picker-actions {
+    -fx-padding: 20 32 32 32;
+}
+
+/* the big red arcade button */
+.shoot-button {
+    -fx-background-color: #d21f28;
+    -fx-text-fill: white;
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 16;
+    -fx-padding: 22 40 22 40;
+    -fx-cursor: hand;
+}
+.shoot-button:hover    { -fx-background-color: #e63946; }
+.shoot-button:pressed  { -fx-background-color: #a5161d; }
+.shoot-button:disabled { -fx-opacity: 0.4; }

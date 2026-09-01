@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit
  * for it (avfoundation is macOS-only).
  */
 class FfmpegPreviewStream(
-    private val deviceIndex: Int = 0,
+    /** avfoundation device — an index (`"0"`) or a name (`"FaceTime HD Camera"`); match the shutter camera's `camera.device`. */
+    private val device: String = "0",
     private val frameRate: Int = 10,
     private val width: Int = 1280,
     private val height: Int = 720,
@@ -31,7 +32,7 @@ class FfmpegPreviewStream(
             "-f", "avfoundation",
             "-framerate", frameRate.toString(),
             "-video_size", "${width}x$height",
-            "-i", deviceIndex.toString(),
+            "-i", device,
             "-vf", "fps=$frameRate",
             "-f", "mjpeg",
             "-q:v", "5",

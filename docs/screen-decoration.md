@@ -52,18 +52,21 @@ else CSS-expressible — rotation, opacity, a plate behind it) is the
 
 ## Where the QRs and "tap to start" sit
 
-The two idle-screen QRs and the "Tap to start" hint are placed by
-`kiosk.*.position` keys in `config/photobooth.properties` — same position
-vocabulary as above:
+Each QR can be switched on/off, and all three are placed by `kiosk.*` keys
+in `config/photobooth.properties` — same position vocabulary as above:
 
 ```properties
-kiosk.qr.layout.position=center-left     # "choose your layout" QR
-kiosk.qr.recovery.position=center-right   # "missed your QR?" recovery QR
+kiosk.qr.layout.enabled=true             # the "choose your layout" QR
+kiosk.qr.layout.position=center-left
+kiosk.qr.recovery.enabled=true           # the "missed your QR?" recovery QR
+kiosk.qr.recovery.position=center-right
 kiosk.taphint.position=bottom-center
 ```
 
-Their *styling* (font, colour, shadow) is `.qr-tile` / `.qr-caption` /
-`.tap-hint` in `config/kiosk/kiosk.css`; these keys are only *where* they go.
+(The layout QR also needs `overlay.selection.enabled` to have a page to
+point at.) Their *styling* (font, colour, shadow) is `.qr-tile` /
+`.qr-caption` / `.tap-hint` in `config/kiosk/kiosk.css`; these keys are only
+whether/where they go.
 
 ## Assets
 

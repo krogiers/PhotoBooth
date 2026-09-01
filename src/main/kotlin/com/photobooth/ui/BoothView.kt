@@ -101,6 +101,9 @@ class BoothView(
     // firing while a phone-triggered shoot (see requestStart) is already underway, or vice versa.
     private val sessionInProgress = AtomicBoolean(false)
 
+    /** Fired on the FX thread whenever a shoot starts (`true`) or ends (`false`) — e.g. to disable the picker screen's button. */
+    var onSessionStateChanged: (inProgress: Boolean) -> Unit = {}
+
     // One shoot at a time runs on this executor; the result screen's auto-dismiss is a single
     // scheduled task we keep a handle on so an early tap can cancel it. Both are shut down in close().
     private val sessionExecutor = daemonExecutor("photo-session")
@@ -150,6 +153,7 @@ class BoothView(
     fun requestStart(): Boolean {
         if (!sessionInProgress.compareAndSet(false, true)) return false
         Platform.runLater {
+            onSessionStateChanged(true)
             showCountdown(countdownSeconds)
             sessionExecutor.execute {
                 try {
@@ -208,10 +212,11 @@ class BoothView(
 
     /**
      * The idle screen: a per-event [decor] layer (bunting, graphic, title)
-     * behind the functional layer. The two QRs and "Tap to start" are placed
-     * by alignment from [kioskLayout] (`kiosk.*.position` config), each with a
-     * small edge inset. Empty areas of both layers don't pick, so a tap
-     * anywhere but on a QR falls through to start a shoot.
+     * behind the functional layer. Each QR shows only when its
+     * `kiosk.*.enabled` flag is on (and it was generated at all), placed by
+     * alignment from [kioskLayout] (`kiosk.*.position`), with a small edge
+     * inset. Empty areas of both layers don't pick, so a tap anywhere but on
+     * a QR falls through to start a shoot.
      */
     private fun buildIdleOverlay(): StackPane {
         val functional = StackPane()
@@ -222,8 +227,10 @@ class BoothView(
             functional.children.add(node)
         }
 
-        chooseOverlayQrCode?.let { place(qrTile(it, strings.t("scan_choose_overlay")), kioskLayout.layoutQr) }
-        lastPhotoQrCode?.let { place(qrTile(it, strings.t("scan_last_photo")), kioskLayout.recoveryQr) }
+        chooseOverlayQrCode?.takeIf { kioskLayout.layoutQrEnabled }
+            ?.let { place(qrTile(it, strings.t("scan_choose_overlay")), kioskLayout.layoutQr) }
+        lastPhotoQrCode?.takeIf { kioskLayout.recoveryQrEnabled }
+            ?.let { place(qrTile(it, strings.t("scan_last_photo")), kioskLayout.recoveryQr) }
         place(Label(strings.t("tap_to_start")).apply { styleClass += "tap-hint" }, kioskLayout.tapHint)
 
         return StackPane(buildDecorLayer(), functional)
@@ -371,6 +378,7 @@ class BoothView(
         // Cleared last, and unconditionally, so a preview that fails to restart still leaves
         // the booth able to take the next photo rather than stuck "in progress" forever.
         sessionInProgress.set(false)
+        onSessionStateChanged(false)
     }
 
     /** Bring the screen back to idle after a session that ended in an error rather than a photo. */
@@ -380,6 +388,7 @@ class BoothView(
         idleOverlay.isVisible = true
         restartPreview()
         sessionInProgress.set(false)
+        onSessionStateChanged(false)
     }
 
     private fun restartPreview() {

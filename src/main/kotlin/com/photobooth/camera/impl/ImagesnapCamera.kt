@@ -12,13 +12,20 @@ import java.util.concurrent.TimeUnit
  */
 class ImagesnapCamera(
     private val timeoutSeconds: Long = 10,
+    /** `-d "<name>"` when set — which camera to use (see `imagesnap -l`). */
+    private val device: String? = null,
 ) : Camera {
 
     override fun capture(outputFile: File): File {
         outputFile.parentFile?.mkdirs()
 
         // -w gives the camera a moment to warm up/auto-expose before the shot.
-        val process = ProcessBuilder("imagesnap", "-w", "1", outputFile.absolutePath)
+        val command = buildList {
+            add("imagesnap"); add("-w"); add("1")
+            device?.let { add("-d"); add(it) }
+            add(outputFile.absolutePath)
+        }
+        val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
 

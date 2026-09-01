@@ -10,6 +10,12 @@
 #   placeholder - force the synthetic placeholder photo, on any OS.
 camera.type=auto
 
+# Which physical camera, when the machine has more than one. Blank = the
+# backend's default.
+#   pi / linux auto : a camera INDEX (0, 1, …) — run `rpicam-still --list-cameras`
+#   webcam          : a device NAME — run `imagesnap -l` — or an index
+camera.device=
+
 # Guest-facing text language, for both the kiosk screens and the small web
 # pages a guest's phone opens (/choose, /p/{name}, ...). Built in: en, nl.
 #
@@ -31,17 +37,35 @@ countdown.seconds=3
 # screen (with the live self-view) returns.
 result.display.seconds=15
 
-# Initial window size in pixels. Only matters in windowed dev mode
-# (PHOTOBOOTH_WINDOWED set) — a full-screen kiosk uses the display's own
-# size and the self-view scales to fill it.
+# Full-screen kiosk window (default true). The PHOTOBOOTH_WINDOWED env var
+# still forces a windowed run regardless, for quick dev testing.
+window.fullscreen=true
+# Initial window size in pixels — only used when not full-screen
+# (window.fullscreen=false, or PHOTOBOOTH_WINDOWED set). A full-screen kiosk
+# uses the display's own size and the self-view scales to fill it.
 window.width=1024
 window.height=768
 
-# Where the idle screen's fixed elements sit. Position is one of:
-#   top-left | top-center | top-right | center-left | center | center-right
-#   | bottom-left | bottom-center | bottom-right
-# (styling of these is in config/kiosk/kiosk.css — this is only *where*.)
+# Second display for an operator standing beside the booth: the layout
+# gallery + one big red "take the photo" button (no download, no photo shown
+# afterwards). While a shot runs the button is disabled so you can't start a
+# second one. Needs overlay.selection.enabled=true.
+secondscreen.enabled=false
+# Which display each screen goes on (0 = first display, usually primary).
+#   booth  : the main self-view / countdown / result screen. If this display
+#            is missing the booth still runs, on the primary.
+#   picker : the operator screen above. It appears ONLY on this display —
+#            if that display isn't present, there is no picker screen.
+screen.booth.display=0
+screen.picker.display=1
+
+# The idle screen's fixed elements: whether each shows, and where.
+#   position: top-left | top-center | top-right | center-left | center
+#             | center-right | bottom-left | bottom-center | bottom-right
+# (styling of these is in config/kiosk/kiosk.css — this is only whether/where.)
+kiosk.qr.layout.enabled=true
 kiosk.qr.layout.position=center-left
+kiosk.qr.recovery.enabled=true
 kiosk.qr.recovery.position=center-right
 kiosk.taphint.position=bottom-center
 

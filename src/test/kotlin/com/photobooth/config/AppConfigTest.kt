@@ -26,6 +26,41 @@ class AppConfigTest {
     }
 
     @Test
+    fun `second screen is off by default with sensible display indices`() {
+        val data = Files.createTempDirectory("photobooth-data").toFile()
+        val config = AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+
+        assertEquals(false, config.secondScreenEnabled)
+        assertEquals(0, config.boothDisplay)
+        assertEquals(1, config.pickerDisplay)
+
+        val on = AppConfig.load(
+            propsFile(
+                "data.dir=${data.path}",
+                "secondscreen.enabled=true",
+                "screen.booth.display=1",
+                "screen.picker.display=2",
+            ),
+            LocalDate.of(2026, 8, 30),
+        )
+        assertEquals(true, on.secondScreenEnabled)
+        assertEquals(1, on.boothDisplay)
+        assertEquals(2, on.pickerDisplay)
+    }
+
+    @Test
+    fun `window fullscreen defaults on and can be turned off`() {
+        val data = Files.createTempDirectory("photobooth-data").toFile()
+        assertEquals(true, AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30)).windowFullscreen)
+
+        val off = AppConfig.load(
+            propsFile("data.dir=${data.path}", "window.fullscreen=false"),
+            LocalDate.of(2026, 8, 30),
+        )
+        assertEquals(false, off.windowFullscreen)
+    }
+
+    @Test
     fun `data_subdir overrides the date, for a named event`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
         val config = AppConfig.load(

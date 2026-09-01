@@ -4,6 +4,7 @@ import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class KioskLayoutTest {
 
@@ -12,13 +13,24 @@ class KioskLayoutTest {
     }
 
     @Test
-    fun `empty properties give the default layout`() {
+    fun `empty properties give the default layout, both QRs on`() {
         val layout = KioskLayout.from(Properties())
 
         assertEquals(KioskLayout.DEFAULT, layout)
         assertEquals(DecorPosition.CENTER_LEFT, layout.layoutQr)
         assertEquals(DecorPosition.CENTER_RIGHT, layout.recoveryQr)
         assertEquals(DecorPosition.BOTTOM_CENTER, layout.tapHint)
+        assertTrue(layout.layoutQrEnabled && layout.recoveryQrEnabled)
+    }
+
+    @Test
+    fun `each QR can be switched off independently`() {
+        val layout = KioskLayout.from(
+            props("kiosk.qr.layout.enabled" to "false", "kiosk.qr.recovery.enabled" to "true"),
+        )
+
+        assertEquals(false, layout.layoutQrEnabled)
+        assertEquals(true, layout.recoveryQrEnabled)
     }
 
     @Test

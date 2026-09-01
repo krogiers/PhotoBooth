@@ -17,6 +17,8 @@ class RpicamPreviewStream(
     private val width: Int = 1280,
     private val height: Int = 720,
     private val frameRate: Int = 15,
+    /** `--camera <n>` when set — match the shutter camera's `camera.device`. */
+    private val cameraIndex: Int? = null,
 ) : PreviewSource {
     override var onFrame: (ByteArray) -> Unit = {}
 
@@ -25,15 +27,18 @@ class RpicamPreviewStream(
 
     override fun start() {
         val proc = ProcessBuilder(
-            "rpicam-vid",
-            "--codec", "mjpeg",
-            "--inline",
-            "--timeout", "0",
-            "--width", width.toString(),
-            "--height", height.toString(),
-            "--framerate", frameRate.toString(),
-            "--nopreview",
-            "-o", "-",
+            buildList {
+                add("rpicam-vid")
+                add("--codec"); add("mjpeg")
+                add("--inline")
+                add("--timeout"); add("0")
+                add("--width"); add(width.toString())
+                add("--height"); add(height.toString())
+                add("--framerate"); add(frameRate.toString())
+                add("--nopreview")
+                cameraIndex?.let { add("--camera"); add(it.toString()) }
+                add("-o"); add("-")
+            },
         ).redirectErrorStream(false).start()
         process = proc
 

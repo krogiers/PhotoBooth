@@ -138,32 +138,38 @@ class PhotoBoothComponent internal constructor(
  * camera on Linux, otherwise a Mac webcam via `imagesnap` if installed, else
  * a synthetic placeholder.
  */
-private fun selectCamera(config: AppConfig): Camera = when (config.cameraType) {
-    CameraType.PI -> {
-        log.info("camera.type=pi — using the Pi Camera Module (rpicam-still).")
-        LibcameraCamera()
+private fun selectCamera(config: AppConfig): Camera {
+    // pi/rpicam wants a numeric --camera index; imagesnap wants a -d device name.
+    val piIndex = config.cameraDevice?.let {
+        it.toIntOrNull() ?: run { log.warn("camera.device='{}' isn't a camera index — ignoring for the Pi camera.", it); null }
     }
-    CameraType.WEBCAM -> {
-        log.info("camera.type=webcam — capturing from the local webcam via imagesnap.")
-        ImagesnapCamera()
-    }
-    CameraType.PLACEHOLDER -> {
-        log.info("camera.type=placeholder — using the synthetic placeholder photo.")
-        PlaceholderCamera()
-    }
-    CameraType.AUTO -> when {
-        isLinux -> LibcameraCamera()
-        ImagesnapCamera.isAvailable() -> {
-            log.info("Not running on Linux — capturing from the local webcam via imagesnap.")
-            ImagesnapCamera()
+    return when (config.cameraType) {
+        CameraType.PI -> {
+            log.info("camera.type=pi — Pi Camera Module (rpicam-still){}.", config.cameraDevice?.let { " camera $it" } ?: "")
+            LibcameraCamera(cameraIndex = piIndex)
         }
-        else -> {
-            log.warn(
-                "Not running on Linux and `imagesnap` isn't installed — using a synthetic placeholder photo. " +
-                    "Run `brew install imagesnap` to capture from this Mac's webcam instead, " +
-                    "or set camera.type explicitly in config/photobooth.properties."
-            )
+        CameraType.WEBCAM -> {
+            log.info("camera.type=webcam — local webcam via imagesnap{}.", config.cameraDevice?.let { " '$it'" } ?: "")
+            ImagesnapCamera(device = config.cameraDevice)
+        }
+        CameraType.PLACEHOLDER -> {
+            log.info("camera.type=placeholder — using the synthetic placeholder photo.")
             PlaceholderCamera()
+        }
+        CameraType.AUTO -> when {
+            isLinux -> LibcameraCamera(cameraIndex = piIndex)
+            ImagesnapCamera.isAvailable() -> {
+                log.info("Not running on Linux — capturing from the local webcam via imagesnap.")
+                ImagesnapCamera(device = config.cameraDevice)
+            }
+            else -> {
+                log.warn(
+                    "Not running on Linux and `imagesnap` isn't installed — using a synthetic placeholder photo. " +
+                        "Run `brew install imagesnap` to capture from this Mac's webcam instead, " +
+                        "or set camera.type explicitly in config/photobooth.properties."
+                )
+                PlaceholderCamera()
+            }
         }
     }
 }
@@ -178,8 +184,8 @@ private fun selectPreviewSource(config: AppConfig, camera: Camera): PreviewSourc
     val usingPiCamera = config.cameraType == CameraType.PI ||
         (config.cameraType == CameraType.AUTO && isLinux)
     return when {
-        usingPiCamera -> RpicamPreviewStream()
-        !isLinux && FfmpegPreviewStream.isAvailable() -> FfmpegPreviewStream()
+        usingPiCamera -> RpicamPreviewStream(cameraIndex = config.cameraDevice?.toIntOrNull())
+        !isLinux && FfmpegPreviewStream.isAvailable() -> FfmpegPreviewStream(device = config.cameraDevice ?: "0")
         else -> {
             log.warn(
                 "No live preview stream for this camera/OS — the self-view will be a periodic still " +

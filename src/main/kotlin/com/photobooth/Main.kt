@@ -3,6 +3,7 @@ package com.photobooth
 import com.photobooth.config.AppConfig
 import com.photobooth.i18n.Strings
 import com.photobooth.ui.BoothView
+import com.photobooth.ui.PickerView
 import com.photobooth.util.daemonExecutor
 import javafx.application.Application
 import javafx.application.Platform
@@ -10,6 +11,7 @@ import javafx.scene.Parent
 import javafx.scene.Scene
 import javafx.scene.control.Label
 import javafx.scene.layout.StackPane
+import javafx.stage.Screen
 import javafx.stage.Stage
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -32,15 +34,15 @@ class PhotoBoothApp : Application() {
 
     @Volatile
     private var component: PhotoBoothComponent? = null
+    private var pickerStage: Stage? = null
 
     override fun start(stage: Stage) {
-        if (System.getenv("PHOTOBOOTH_WINDOWED") == null) {
-            stage.isFullScreen = true
-            stage.fullScreenExitHint = "" // no "press ESC" popup on a kiosk
-        }
-
         val config = runCatching { AppConfig.load() }
+            .onFailure { applyWindowMode(stage, fullscreen = true) } // no config yet — assume kiosk
             .getOrElse { return fail(stage, strings = null, cause = it) }
+        placeOnDisplay(stage, config.boothDisplay, what = "booth")
+        applyWindowMode(stage, fullscreen = config.windowFullscreen)
+
         val strings = runCatching { Strings.load(config.language) }
             .getOrElse { return fail(stage, strings = null, cause = it) }
 
@@ -81,10 +83,47 @@ class PhotoBoothApp : Application() {
         view.show()
         c.gpio.onButtonPressed { view.startSession() }
 
+        if (c.config.secondScreenEnabled) installPicker(c, view)
+
         stage.setOnCloseRequest {
+            pickerStage?.close()
             view.close()
             c.close()
         }
+    }
+
+    /**
+     * The optional second display: the layout gallery + a red "take the
+     * photo" button. It appears **only** on `screen.picker.display` — if that
+     * display isn't present, or overlay selection is off, there's simply no
+     * picker screen.
+     */
+    private fun installPicker(c: PhotoBoothComponent, booth: BoothView) {
+        val overlays = c.overlaySelection ?: run {
+            log.warn("secondscreen.enabled but overlay.selection.enabled=false — no picker screen (it has no gallery).")
+            return
+        }
+        val screen = Screen.getScreens().getOrNull(c.config.pickerDisplay) ?: run {
+            log.warn("secondscreen.enabled but display {} isn't present — no picker screen.", c.config.pickerDisplay)
+            return
+        }
+
+        val picker = PickerView(overlays, c.strings)
+        picker.onShoot = { booth.requestStart() }
+        booth.onSessionStateChanged = { inProgress -> picker.setBusy(inProgress) }
+        // Fan the overlay-changed event out to the picker's highlight as well as the booth self-view.
+        val boothOnChanged = overlays.onChanged
+        overlays.onChanged = { f -> boothOnChanged(f); picker.refreshSelection() }
+
+        val stage = Stage()
+        stage.x = screen.bounds.minX
+        stage.y = screen.bounds.minY
+        stage.scene = Scene(picker.root, screen.bounds.width, screen.bounds.height)
+            .apply { stylesheets.addAll(kioskStylesheets()) }
+        applyWindowMode(stage, fullscreen = c.config.windowFullscreen)
+        stage.setOnCloseRequest { pickerStage = null }
+        stage.show()
+        pickerStage = stage
     }
 
     private fun fail(stage: Stage, strings: Strings?, cause: Throwable) {
@@ -96,8 +135,30 @@ class PhotoBoothApp : Application() {
 
     /** JavaFX calls this on exit — a safety net for the paths `setOnCloseRequest` doesn't cover. */
     override fun stop() {
+        pickerStage?.close()
         component?.close()
         bootstrap.shutdownNow()
+    }
+
+    /**
+     * Move [stage] onto the given display index before it's shown. A missing
+     * index is only a warning — the primary display is the fallback (the
+     * booth must run somewhere; the picker screen, by contrast, is skipped).
+     */
+    private fun placeOnDisplay(stage: Stage, index: Int, what: String) {
+        val screen = Screen.getScreens().getOrNull(index) ?: run {
+            log.warn("screen.{}.display={} isn't present — {} screen stays on the primary display.", what, index, what)
+            return
+        }
+        stage.x = screen.bounds.minX
+        stage.y = screen.bounds.minY
+    }
+
+    /** Full-screen unless `window.fullscreen=false`, or the `PHOTOBOOTH_WINDOWED` env var forces windowed for a quick dev run. */
+    private fun applyWindowMode(stage: Stage, fullscreen: Boolean) {
+        val kiosk = fullscreen && System.getenv("PHOTOBOOTH_WINDOWED") == null
+        stage.isFullScreen = kiosk
+        if (kiosk) stage.fullScreenExitHint = "" // no "press ESC" popup on a kiosk
     }
 
     /** Put [content] on screen: swap the root if the Scene already exists (keeps full-screen), else create it. */

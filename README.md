@@ -43,6 +43,7 @@ needs, are split out per subsystem:
 | [`docs/download-server-and-tunnel.md`](docs/download-server-and-tunnel.md) | The embedded HTTP server, its phone-facing routes (`/p`, `/last`, …), and the Cloudflare quick tunnel that exposes it |
 | [`docs/phone-pages.md`](docs/phone-pages.md) | The pages a guest's phone opens, and rebranding them per event (`config/web/`, `/preview`) |
 | [`docs/screen-decoration.md`](docs/screen-decoration.md) | Dressing the kiosk idle screen per event — bunting, a graphic, a titled font, QR positions, `config/kiosk/kiosk.css` |
+| [`docs/second-screen.md`](docs/second-screen.md) | The optional operator screen on a 2nd display — layout gallery + a red shoot button (`secondscreen.enabled`) |
 | [`docs/customising.md`](docs/customising.md) | The full list of what you can change per event without a rebuild, and `./gradlew seedConfig` |
 | [`docs/overlays.md`](docs/overlays.md) | Overlay compositing and the optional phone-side layout picker |
 | [`docs/gpio.md`](docs/gpio.md) | The arcade button and "lighting ok" LED wiring and pins |

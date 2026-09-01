@@ -18,19 +18,22 @@ class LibcameraCamera(
     private val width: Int = 1920,
     private val height: Int = 1080,
     private val timeoutSeconds: Long = 10,
+    /** `--camera <n>` when set — which attached camera to use (see `rpicam-still --list-cameras`). */
+    private val cameraIndex: Int? = null,
 ) : Camera {
 
     override fun capture(outputFile: File): File {
         outputFile.parentFile?.mkdirs()
 
-        val command = listOf(
-            binary,
-            "--output", outputFile.absolutePath,
-            "--width", width.toString(),
-            "--height", height.toString(),
-            "--timeout", "1000",
-            "--nopreview",
-        )
+        val command = buildList {
+            add(binary)
+            add("--output"); add(outputFile.absolutePath)
+            add("--width"); add(width.toString())
+            add("--height"); add(height.toString())
+            add("--timeout"); add("1000")
+            add("--nopreview")
+            cameraIndex?.let { add("--camera"); add(it.toString()) }
+        }
 
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)

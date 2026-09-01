@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java -version)",
+      "Bash(gradle -v)",
+      "Bash(./gradlew clean *)",
+      "Bash(cat /tmp/run19.log | tail -40)",
+      "Read(//private/tmp/**)",
+      "Bash(pkill -f \"com.photobooth.MainKt\")"
+    ]
+  }
+}

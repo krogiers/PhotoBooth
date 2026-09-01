@@ -117,7 +117,10 @@ interface(s) in the package root and every implementation one level down in
 - `Main.kt` (`PhotoBoothApp`) — a thin JavaFX shell: `start()` shows a
   loading screen at once, runs `PhotoBoothComponent.build()` on a background
   executor (so the FX thread never blocks), then installs `BoothView` — or
-  an error screen if the build throws.
+  an error screen if the build throws. Owns every `Stage`: the booth window
+  on `screen.booth.display`, and — when `secondscreen.enabled` — a second
+  window on `screen.picker.display` (skipped, not fallen back, if that
+  display is absent). See [`docs/second-screen.md`](docs/second-screen.md).
 - `ui/BoothView.kt` — the JavaFX kiosk UI (idle/countdown/result states,
   full-screen; two idle QRs, one per screen edge — layout picker left,
   `/last` recovery right; an optional per-event `DecorConfig` layer of
@@ -126,6 +129,9 @@ interface(s) in the package root and every implementation one level down in
   [`docs/remote-start.md`](docs/remote-start.md)) to the same `PhotoSession`
   run. The self-view fills the real display (fit sizes bound to the root),
   and each frame reuses one `PixelBuffer` surface instead of a fresh `Image`.
+- `ui/PickerView.kt` — the optional second-screen UI: the layout gallery + a
+  red "take the photo" button, no download, no result view. Reuses
+  `OverlaySelection` and calls `BoothView.requestStart()`.
 - `config/AppConfig.kt` (+ `config/DecorConfig.kt`, `config/KioskLayout.kt`) —
   loads `config/photobooth.properties` (falling back to defaults so the app
   runs on a dev machine without any hardware attached), derives a per-session

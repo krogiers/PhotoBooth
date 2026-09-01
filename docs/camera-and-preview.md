@@ -22,7 +22,11 @@ One method: `capture(outputFile: File): File`. Implementations:
 
 The choice is made once in
 [`PhotoBoothComponent`](../src/main/kotlin/com/photobooth/PhotoBoothComponent.kt)'s
-`selectCamera`. Every real capture goes through
+`selectCamera` / `selectPreviewSource`. When the machine has more than one
+camera, `camera.device` picks it — a numeric index for the Pi camera
+(`rpicam-still --list-cameras` → `--camera <n>`), a device name for a webcam
+(`imagesnap -l` → `-d "<name>"`); it's threaded to the matching preview
+stream too. Every real capture goes through
 [`SynchronizedCamera`](../src/main/kotlin/com/photobooth/camera/impl/SynchronizedCamera.kt),
 which serializes calls so a `PreviewLoop` still and the real shutter never
 hit a single-shot CLI at once. A capture subprocess that overruns its

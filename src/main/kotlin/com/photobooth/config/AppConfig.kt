@@ -29,6 +29,14 @@ enum class CameraType {
  */
 data class AppConfig(
     val cameraType: CameraType,
+    /**
+     * Which physical camera to use when the backend has more than one.
+     * `pi` / Linux `auto`: a camera **index** (`0`, `1`, … — `--camera <n>`,
+     * see `rpicam-still --list-cameras`). `webcam`: a device **name**
+     * (`-d "<name>"`, see `imagesnap -l`) or index. Blank = the backend's
+     * default.
+     */
+    val cameraDevice: String?,
     val buttonGpioPin: Int,
     val ledGpioPin: Int,
     val countdownSeconds: Int,
@@ -77,9 +85,33 @@ data class AppConfig(
     /** Where the idle screen's QR codes and "tap to start" hint sit — see [KioskLayout]. */
     val kioskLayout: KioskLayout,
     /**
-     * Initial window size (px). Only visible in windowed dev mode
-     * (`PHOTOBOOTH_WINDOWED`); a full-screen kiosk uses the display's own
-     * size and the self-view scales to fill it.
+     * A second display showing the layout gallery + a red "take the photo"
+     * button (no download) — for an operator standing beside the booth. Needs
+     * `overlay.selection.enabled=true`. `false` = booth screen only.
+     */
+    val secondScreenEnabled: Boolean,
+    /**
+     * Display index (0 = first / usually primary) for the main booth screen.
+     * If that display isn't present the booth still runs, on the primary,
+     * with a warning.
+     */
+    val boothDisplay: Int,
+    /**
+     * Display index for the picker screen. It appears **only** there — if
+     * that display isn't present, there is simply no picker screen (no
+     * fallback).
+     */
+    val pickerDisplay: Int,
+    /**
+     * Whether the kiosk window goes full-screen (`window.fullscreen`, default
+     * `true`). The `PHOTOBOOTH_WINDOWED` env var still forces windowed for a
+     * quick dev run regardless of this.
+     */
+    val windowFullscreen: Boolean,
+    /**
+     * Initial window size (px). Only visible when not full-screen
+     * (`window.fullscreen=false` or `PHOTOBOOTH_WINDOWED` set); a full-screen
+     * kiosk uses the display's own size and the self-view scales to fill it.
      */
     val windowWidth: Int,
     val windowHeight: Int,
@@ -103,6 +135,7 @@ data class AppConfig(
             val sessionDir = File(dataDir, prop("data.subdir", "").ifBlank { today.toString() })
             val config = AppConfig(
                 cameraType = CameraType.parse(prop("camera.type", "auto")),
+                cameraDevice = prop("camera.device", "").ifBlank { null },
                 buttonGpioPin = prop("gpio.button.pin", "17").toInt(),
                 ledGpioPin = prop("gpio.led.pin", "27").toInt(),
                 countdownSeconds = prop("countdown.seconds", "3").toInt(),
@@ -119,6 +152,10 @@ data class AppConfig(
                 webBrandName = prop("web.brand.name", "").ifBlank { null },
                 decor = DecorConfig.from(props),
                 kioskLayout = KioskLayout.from(props),
+                secondScreenEnabled = prop("secondscreen.enabled", "false").toBoolean(),
+                boothDisplay = prop("screen.booth.display", "0").toInt(),
+                pickerDisplay = prop("screen.picker.display", "1").toInt(),
+                windowFullscreen = prop("window.fullscreen", "true").toBoolean(),
                 windowWidth = prop("window.width", "1024").toInt(),
                 windowHeight = prop("window.height", "768").toInt(),
             )
