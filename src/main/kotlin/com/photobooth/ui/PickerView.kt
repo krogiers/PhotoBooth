@@ -43,9 +43,11 @@ class PickerView(
         }
     }
 
+    // A round arcade-style button — size / look / the "pushed in" press are all in
+    // `.shoot-button` in kiosk.css (so don't pin a maxWidth here, it'd beat the CSS).
     private val shootButton = Button(strings.t("take_photo_button")).apply {
         styleClass += "shoot-button"
-        maxWidth = Double.MAX_VALUE
+        isWrapText = true
         setOnAction { onShoot() }
     }
 

@@ -26,7 +26,12 @@ The choice is made once in
 camera, `camera.device` picks it — a numeric index for the Pi camera
 (`rpicam-still --list-cameras` → `--camera <n>`), a device name for a webcam
 (`imagesnap -l` → `-d "<name>"`); it's threaded to the matching preview
-stream too. Every real capture goes through
+stream too, so the self-view and the photo always come from the same camera.
+For the Pi camera a blank `camera.device` means `--camera 0`, **not** "let
+libcamera choose" — otherwise the picked camera isn't stable across reboots
+when several are attached. On macOS a blank value is the system default
+camera (which can move between runs); set `camera.device` to pin it. The
+chosen camera is logged at startup. Every real capture goes through
 [`SynchronizedCamera`](../src/main/kotlin/com/photobooth/camera/impl/SynchronizedCamera.kt),
 which serializes calls so a `PreviewLoop` still and the real shutter never
 hit a single-shot CLI at once. A capture subprocess that overruns its

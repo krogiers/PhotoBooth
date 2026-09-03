@@ -44,5 +44,24 @@ Display `0` is the first display (usually the primary). Rules:
   primary — "no screen, no scene"). Same if `overlay.selection.enabled=false`
   (it would have no gallery).
 
-Both windows follow `window.fullscreen` (and the `PHOTOBOOTH_WINDOWED` env
-var still forces windowed for a dev run).
+Each window has its own kiosk flag — `screen.booth.fullscreen` /
+`screen.picker.fullscreen` (both default on) — so one can be full-screen
+while the other is a plain window. Full-screen is real
+`Stage.isFullScreen`, applied after the window is shown on its target
+display so it covers that display edge to edge. JavaFX lets only one Stage
+hold it at a time, so bringing the picker up can drop the booth out of
+full-screen — `Main.kt` re-asserts the booth's flag right after. The
+`PHOTOBOOTH_WINDOWED` env var still forces both windowed for a dev run.
+When windowed, size is `window.width/height` or, blank, ~80% of the display.
+
+**Dev on one monitor:** run windowed (`PHOTOBOOTH_WINDOWED=1` or
+`screen.picker.fullscreen=false`) with `secondscreen.enabled=true`. If
+`screen.picker.display` isn't a real display the picker then opens as a
+second window on the primary, offset from the booth window, so it can be
+tested without a second monitor. A full-screen kiosk never does this — a
+missing display means no picker.
+
+**Shutting down:** closing either window (or `stop()` / a `Ctrl-C` on
+`./gradlew run`) quits the whole app — one idempotent teardown closes both
+windows and stops the preview, download server, tunnel and GPIO. You never
+have to close the two windows separately.

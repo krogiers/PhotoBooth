@@ -120,15 +120,22 @@ interface(s) in the package root and every implementation one level down in
   an error screen if the build throws. Owns every `Stage`: the booth window
   on `screen.booth.display`, and — when `secondscreen.enabled` — a second
   window on `screen.picker.display` (skipped, not fallen back, if that
-  display is absent). See [`docs/second-screen.md`](docs/second-screen.md).
-- `ui/BoothView.kt` — the JavaFX kiosk UI (idle/countdown/result states,
-  full-screen; two idle QRs, one per screen edge — layout picker left,
-  `/last` recovery right; an optional per-event `DecorConfig` layer of
-  bunting / graphic / title behind them). Wires the `Gpio` button press, a
-  touchscreen tap, and the phone's "Take the photo" button (`/shoot`,
-  [`docs/remote-start.md`](docs/remote-start.md)) to the same `PhotoSession`
-  run. The self-view fills the real display (fit sizes bound to the root),
-  and each frame reuses one `PixelBuffer` surface instead of a fresh `Image`.
+  display is absent). Fullscreen per screen (`screen.booth.fullscreen` /
+  `screen.picker.fullscreen`) is real `Stage.isFullScreen`, applied *after*
+  `show()` on the target display so it covers it edge to edge; only one Stage
+  can hold it, so `installPicker` re-asserts the booth's flag after bringing
+  the picker up. Windowed size is `window.width/height` or, blank, ~80% of
+  the display. Any window's close, `stop()`, and a JVM shutdown hook all
+  funnel through one idempotent `teardown()`. See [`docs/second-screen.md`](docs/second-screen.md).
+- `ui/BoothView.kt` — the JavaFX kiosk UI (idle/countdown/result states;
+  two idle QRs in the bottom corners — layout picker left, `/last` recovery
+  right — positions/on-off from `KioskLayout`; an optional per-event
+  `DecorConfig` layer of bunting / graphic / title behind them). Wires the
+  `Gpio` button press, a touchscreen tap, and the phone's "Take the photo"
+  button (`/shoot`, [`docs/remote-start.md`](docs/remote-start.md)) to the
+  same `PhotoSession` run. The self-view sits in a framed box (`.kiosk-stage`
+  padding = the border around the picture) and each frame reuses one
+  `PixelBuffer` surface instead of a fresh `Image`.
 - `ui/PickerView.kt` — the optional second-screen UI: the layout gallery + a
   red "take the photo" button, no download, no result view. Reuses
   `OverlaySelection` and calls `BoothView.requestStart()`.

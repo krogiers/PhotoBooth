@@ -46,7 +46,9 @@ class PhotoSession(
     fun run() {
         gpio.setLed(true)
         try {
-            val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+            // Millisecond resolution: two shoots in the same wall-clock second (countdown.seconds=0,
+            // a fast camera) would otherwise overwrite the first group's files.
+            val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"))
             val overlayFile = overlaySelection?.current() ?: config.overlayFile
             val originalFile = File(config.originalsDir, "$timestamp.jpg")
 
@@ -67,8 +69,9 @@ class PhotoSession(
                 Thread.sleep(1000)
             }
             // secondsLeft never reaches 0 in the loop above, so without this the UI would sit
-            // frozen on "1" instead of showing "Smile!" for however much longer the capture takes.
+            // frozen on "1" instead of showing "Smile!".
             onCountdownTick(0)
+            val smileShownAt = System.currentTimeMillis()
 
             try {
                 capture.join()
@@ -76,15 +79,22 @@ class PhotoSession(
                 throw e.cause ?: e
             }
 
+            // Keep "Smile!" up for at least smile.hold.ms — the capture usually finishes during
+            // the countdown, so without this it can flash by before the result screen appears.
+            val remainingSmile = config.smileHoldMillis - (System.currentTimeMillis() - smileShownAt)
+            if (remainingSmile > 0) Thread.sleep(remainingSmile)
+
             val merged = compositor.merge(originalFile, overlayFile, File(config.mergedDir, "$timestamp.png"))
             val downloadUrl = downloadUrlProvider(merged.name)
             val qrPng = qrCodeGenerator.pngBytes(downloadUrl)
 
             onPhotoReady(merged, qrPng, downloadUrl)
         } finally {
-            gpio.setLed(false)
+            // Neither of these may fail a shoot that already produced a photo — a throw here
+            // would escape run() *after* onPhotoReady already fired, leaving the UI wedged.
+            runCatching { gpio.setLed(false) }
             // Each group picks fresh — don't let this choice carry over to whoever steps up next.
-            overlaySelection?.reset()
+            runCatching { overlaySelection?.reset() }
         }
     }
 }

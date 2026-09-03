@@ -3,7 +3,6 @@ package com.photobooth.config
 import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class KioskLayoutTest {
@@ -17,8 +16,8 @@ class KioskLayoutTest {
         val layout = KioskLayout.from(Properties())
 
         assertEquals(KioskLayout.DEFAULT, layout)
-        assertEquals(DecorPosition.CENTER_LEFT, layout.layoutQr)
-        assertEquals(DecorPosition.CENTER_RIGHT, layout.recoveryQr)
+        assertEquals(DecorPosition.BOTTOM_LEFT, layout.layoutQr)
+        assertEquals(DecorPosition.BOTTOM_RIGHT, layout.recoveryQr)
         assertEquals(DecorPosition.BOTTOM_CENTER, layout.tapHint)
         assertTrue(layout.layoutQrEnabled && layout.recoveryQrEnabled)
     }
@@ -61,9 +60,8 @@ class KioskLayoutTest {
     }
 
     @Test
-    fun `an unknown position is rejected`() {
-        assertFailsWith<IllegalStateException> {
-            KioskLayout.from(props("kiosk.taphint.position" to "middle"))
-        }
+    fun `an unknown position falls back to that element's default, no throw`() {
+        val layout = KioskLayout.from(props("kiosk.taphint.position" to "middle"))
+        assertEquals(KioskLayout.DEFAULT.tapHint, layout.tapHint)
     }
 }

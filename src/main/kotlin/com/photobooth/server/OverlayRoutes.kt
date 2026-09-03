@@ -19,7 +19,9 @@ import io.ktor.server.routing.*
  */
 internal fun Routing.overlayRoutes(ctx: PhoneRoutingContext, selection: OverlaySelection) {
     get("/overlays/{name}") {
-        serveFileOrNotFound(selection.overlaysDir, call.parameters["name"])
+        // Static per event and repeated on every /choose load — let the phone cache them
+        // so a layout pick doesn't re-download the whole gallery.
+        serveFileOrNotFound(selection.overlaysDir, call.parameters["name"], cacheControl = "public, max-age=86400")
     }
     get("/choose") {
         respondPage(ctx.chooserPage(selection))

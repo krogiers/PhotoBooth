@@ -36,10 +36,13 @@ extension, mounted in `DownloadServer.start()`. `RouteSupport.kt` holds the
 shared `respondPage` / `serveFileOrNotFound` helpers; `ChooserPage.kt` builds
 the `/choose` page model.
 
-Served files carry `Cache-Control: no-store` so Cloudflare's edge doesn't
-keep a copy of what are otherwise private event photos. Every path parameter
-is resolved with `File(dir, name).normalize()` and rejected unless it stays
-inside its directory — those routes are reachable by anyone on the internet.
+Private files (`/photos`, `/download`) carry `Cache-Control: no-store` so
+Cloudflare's edge and the phone don't keep a copy. Overlay thumbnails
+(`/overlays`) are static per event and repeat on every `/choose` load, so
+they're served `public, max-age=86400` — a layout pick then doesn't
+re-download the whole gallery. Every path parameter is resolved with
+`File(dir, name).normalize()` and rejected unless it stays inside its
+directory — those routes are reachable by anyone on the internet.
 
 ## The tunnel — [`CloudflareTunnel.kt`](../src/main/kotlin/com/photobooth/server/CloudflareTunnel.kt)
 

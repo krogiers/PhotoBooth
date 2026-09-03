@@ -46,6 +46,14 @@ javafx {
 
 application {
     mainClass.set("com.photobooth.MainKt")
+    // Give the process a real name + a visible Dock / ⌘-Tab entry on macOS, so it's
+    // obvious the booth is running (an undecorated kiosk window is otherwise easy to
+    // miss). The -Xdock: flags are simply ignored on Linux/Windows.
+    applicationDefaultJvmArgs = listOf(
+        "-Xdock:name=PhotoBooth",
+        "-Dapple.awt.application.name=PhotoBooth",
+        "-Dapple.awt.UIElement=false",
+    )
 }
 
 tasks.test {

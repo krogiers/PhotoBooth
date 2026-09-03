@@ -46,6 +46,33 @@ class DecorConfigTest {
     }
 
     @Test
+    fun `a layer with a bad key is skipped, the good layers survive`() {
+        val decor = DecorConfig.from(
+            props(
+                "decor.1.file" to "config/decor/a.png",
+                "decor.1.position" to "top-left",
+                "decor.2.file" to "config/decor/b.png",
+                "decor.2.rotate" to "sideways",          // not a number
+                "decor.3.file" to "config/decor/c.png",
+                "decor.3.position" to "middle-ish",       // not a position
+                "decor.4.file" to "config/decor/d.png",
+                "decor.4.position" to "bottom-right",
+            ),
+        )
+
+        assertEquals(
+            listOf(File("config/decor/a.png"), File("config/decor/d.png")),
+            decor.items.map { it.file },
+        )
+    }
+
+    @Test
+    fun `a bad title position falls back to the default, no throw`() {
+        val decor = DecorConfig.from(props("decor.title.text" to "Hi", "decor.title.position" to "nope"))
+        assertEquals(DecorConfig.NONE.titlePosition, decor.titlePosition)
+    }
+
+    @Test
     fun `layers are collected in order and gaps are skipped`() {
         val decor = DecorConfig.from(
             props(

@@ -30,11 +30,13 @@ enum class CameraType {
 data class AppConfig(
     val cameraType: CameraType,
     /**
-     * Which physical camera to use when the backend has more than one.
-     * `pi` / Linux `auto`: a camera **index** (`0`, `1`, … — `--camera <n>`,
-     * see `rpicam-still --list-cameras`). `webcam`: a device **name**
-     * (`-d "<name>"`, see `imagesnap -l`) or index. Blank = the backend's
-     * default.
+     * Which physical camera to use when the machine has more than one.
+     * `pi` / Linux `auto`: a camera **index** (`--camera <n>`, see
+     * `rpicam-still --list-cameras`) — blank means camera `0`, **not** "let
+     * libcamera decide", so the same camera is used every boot. `webcam`
+     * (macOS): a device **name** (`-d "<name>"`, see `imagesnap -l`); blank
+     * there is macOS's default camera, which can move between runs — set it
+     * to pin one.
      */
     val cameraDevice: String?,
     val buttonGpioPin: Int,
@@ -42,6 +44,8 @@ data class AppConfig(
     val countdownSeconds: Int,
     /** How long the merged photo + download QR stay on screen before the idle screen returns. */
     val resultDisplaySeconds: Int,
+    /** Minimum time "Smile!" stays up after the countdown before the result screen appears (`smile.hold.ms`). */
+    val smileHoldMillis: Long,
     /** How often the idle-screen self-view grabs a fresh frame from the camera. */
     val previewIntervalMillis: Long,
     /**
@@ -103,18 +107,24 @@ data class AppConfig(
      */
     val pickerDisplay: Int,
     /**
-     * Whether the kiosk window goes full-screen (`window.fullscreen`, default
-     * `true`). The `PHOTOBOOTH_WINDOWED` env var still forces windowed for a
-     * quick dev run regardless of this.
+     * Whether the booth screen fills its display — a borderless window sized
+     * to the monitor's own resolution (`screen.booth.fullscreen`, default
+     * `true`). `false` gives a normal resizable window ([windowWidth] ×
+     * [windowHeight]). The `PHOTOBOOTH_WINDOWED` env var forces windowed for
+     * both screens regardless.
      */
-    val windowFullscreen: Boolean,
+    val boothFullscreen: Boolean,
+    /** Same as [boothFullscreen] for the picker screen (`screen.picker.fullscreen`, default `true`). */
+    val pickerFullscreen: Boolean,
     /**
-     * Initial window size (px). Only visible when not full-screen
-     * (`window.fullscreen=false` or `PHOTOBOOTH_WINDOWED` set); a full-screen
-     * kiosk uses the display's own size and the self-view scales to fill it.
+     * Window size (px) for a screen whose `*.fullscreen` is `false` (a dev
+     * run). **Blank/unset (null) means auto** — the app opens the window at
+     * ~80% of whatever display it lands on, so the user never has to look up
+     * a resolution. A fullscreen screen ignores this entirely and uses the
+     * display's own size.
      */
-    val windowWidth: Int,
-    val windowHeight: Int,
+    val windowWidth: Int?,
+    val windowHeight: Int?,
 ) {
     val originalsDir: File get() = File(sessionDir, "originals")
     val mergedDir: File get() = File(sessionDir, "merged")
@@ -140,6 +150,7 @@ data class AppConfig(
                 ledGpioPin = prop("gpio.led.pin", "27").toInt(),
                 countdownSeconds = prop("countdown.seconds", "3").toInt(),
                 resultDisplaySeconds = prop("result.display.seconds", "15").toInt(),
+                smileHoldMillis = prop("smile.hold.ms", "1200").toLong(),
                 previewIntervalMillis = prop("preview.interval.ms", "1000").toLong(),
                 serverPort = prop("server.port", "8080").toInt(),
                 dataDir = dataDir,
@@ -155,9 +166,10 @@ data class AppConfig(
                 secondScreenEnabled = prop("secondscreen.enabled", "false").toBoolean(),
                 boothDisplay = prop("screen.booth.display", "0").toInt(),
                 pickerDisplay = prop("screen.picker.display", "1").toInt(),
-                windowFullscreen = prop("window.fullscreen", "true").toBoolean(),
-                windowWidth = prop("window.width", "1024").toInt(),
-                windowHeight = prop("window.height", "768").toInt(),
+                boothFullscreen = prop("screen.booth.fullscreen", "true").toBoolean(),
+                pickerFullscreen = prop("screen.picker.fullscreen", "true").toBoolean(),
+                windowWidth = prop("window.width", "").trim().toIntOrNull(),
+                windowHeight = prop("window.height", "").trim().toIntOrNull(),
             )
             listOf(config.originalsDir, config.mergedDir).forEach { it.mkdirs() }
             return config

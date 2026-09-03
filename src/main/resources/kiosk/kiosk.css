@@ -36,6 +36,17 @@
 }
 
 /* =====================================================================
+ * Framed picture area — ui/BoothView.kt · stageBox
+ * The box the live self-view sits in. Its padding is the visible border
+ * around the picture; its background colour is that border's colour.
+ * ===================================================================== */
+
+.kiosk-stage {
+    -fx-padding: 46;              /* width of the border around the self-view — set 0 for edge-to-edge */
+    -fx-background-color: white;  /* colour of that border */
+}
+
+/* =====================================================================
  * Countdown — ui/BoothView.kt · fields `countdownLabel` / `countdownBadge`,
  * shown by showCountdown(); sits centred over the live self-view.
  * ===================================================================== */
@@ -164,21 +175,34 @@
     -fx-text-fill: #f2f2f5;
 }
 
-/* the bar holding the shoot button */
+/* the bar holding the shoot button — room for the button's shadow + press travel */
 .picker-actions {
-    -fx-padding: 20 32 32 32;
+    -fx-padding: 28 32 44 32;
 }
 
-/* the big red arcade button */
+/* the big red arcade button — a round domed cap that sits proud of a dark
+   rim and visibly pushes in when pressed */
 .shoot-button {
-    -fx-background-color: #d21f28;
+    -fx-min-width: 260;  -fx-max-width: 260;
+    -fx-min-height: 260; -fx-max-height: 260;
+    -fx-background-radius: 1000;
+    -fx-border-radius: 1000;
+    -fx-background-color: radial-gradient(center 50% 34%, radius 68%, #ff6069 0%, #d21f28 55%, #8c1218 100%);
+    -fx-border-color: #490a0e;   /* the plastic rim */
+    -fx-border-width: 9;
     -fx-text-fill: white;
-    -fx-font-size: 30px;
+    -fx-font-size: 24px;
     -fx-font-weight: bold;
-    -fx-background-radius: 16;
-    -fx-padding: 22 40 22 40;
+    -fx-text-alignment: center;
     -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.55), 26, 0.15, 0, 14);  /* sitting proud */
 }
-.shoot-button:hover    { -fx-background-color: #e63946; }
-.shoot-button:pressed  { -fx-background-color: #a5161d; }
-.shoot-button:disabled { -fx-opacity: 0.4; }
+.shoot-button:hover {
+    -fx-background-color: radial-gradient(center 50% 34%, radius 68%, #ff7078 0%, #e0222c 55%, #8c1218 100%);
+}
+.shoot-button:pressed {
+    -fx-translate-y: 10;   /* pushed in */
+    -fx-background-color: radial-gradient(center 50% 46%, radius 72%, #c11d26 0%, #a5161d 60%, #720f14 100%);
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.6), 18, 0.3, 0, 4);   /* recessed, no cast shadow */
+}
+.shoot-button:disabled { -fx-opacity: 0.35; }

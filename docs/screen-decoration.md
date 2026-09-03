@@ -57,11 +57,14 @@ in `config/photobooth.properties` — same position vocabulary as above:
 
 ```properties
 kiosk.qr.layout.enabled=true             # the "choose your layout" QR
-kiosk.qr.layout.position=center-left
+kiosk.qr.layout.position=bottom-left
 kiosk.qr.recovery.enabled=true           # the "missed your QR?" recovery QR
-kiosk.qr.recovery.position=center-right
+kiosk.qr.recovery.position=bottom-right
 kiosk.taphint.position=bottom-center
 ```
+
+The defaults put the two QRs in the bottom corners with the tap hint
+between them.
 
 (The layout QR also needs `overlay.selection.enabled` to have a page to
 point at.) Their *styling* (font, colour, shadow) is `.qr-tile` /
@@ -119,6 +122,7 @@ leaves the defaults.
 | Class | Element |
 | --- | --- |
 | `.kiosk-root` / `.kiosk-message` | the "starting…" splash and startup-error screen |
+| `.kiosk-stage` | the frame around the live self-view — `-fx-padding` is the border width (`0` = edge-to-edge), `-fx-background-color` its colour |
 | `.countdown-number` / `.countdown-badge` | the big countdown digit / "Smile!" and the disc behind it |
 | `.tap-hint` | "Tap to start" |
 | `.qr-tile` / `.qr-caption` | an idle-screen QR block and its caption |

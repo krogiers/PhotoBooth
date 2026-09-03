@@ -2,10 +2,12 @@ package com.photobooth.camera.impl
 
 import com.photobooth.camera.PreviewSource
 import com.photobooth.util.daemonPool
+import org.slf4j.LoggerFactory
 import java.io.BufferedInputStream
 import java.io.OutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Continuous webcam preview via `ffmpeg`'s `avfoundation` input, piped
@@ -23,21 +25,35 @@ class FfmpegPreviewStream(
 ) : PreviewSource {
     override var onFrame: (ByteArray) -> Unit = {}
 
+    private val log = LoggerFactory.getLogger(FfmpegPreviewStream::class.java)
+    // Guards against a second start() with no stop() in between — that would orphan
+    // the first ffmpeg (and its reader threads) still holding the webcam.
+    private val running = AtomicBoolean(false)
     private var process: Process? = null
     private var io: ExecutorService? = null
 
     override fun start() {
-        val proc = ProcessBuilder(
-            "ffmpeg",
-            "-f", "avfoundation",
-            "-framerate", frameRate.toString(),
-            "-video_size", "${width}x$height",
-            "-i", device,
-            "-vf", "fps=$frameRate",
-            "-f", "mjpeg",
-            "-q:v", "5",
-            "-",
-        ).redirectErrorStream(false).start()
+        if (!running.compareAndSet(false, true)) {
+            log.warn("start() called while already running — ignoring (stop() first)")
+            return
+        }
+        val proc = try {
+            ProcessBuilder(
+                "ffmpeg",
+                "-f", "avfoundation",
+                "-framerate", frameRate.toString(),
+                "-video_size", "${width}x$height",
+                "-i", device,
+                "-vf", "fps=$frameRate",
+                "-f", "mjpeg",
+                "-q:v", "5",
+                "-",
+            ).redirectErrorStream(false).start()
+        } catch (e: Exception) {
+            running.set(false)
+            log.warn("Couldn't start ffmpeg ({}) — no live self-view", e.message)
+            return
+        }
         process = proc
 
         // One reader per pipe: ffmpeg logs progress/warnings to stderr, so drain it too or the
@@ -49,9 +65,15 @@ class FfmpegPreviewStream(
     }
 
     override fun stop() {
+        if (!running.compareAndSet(true, false)) return
         process?.let { proc ->
             proc.destroy()
-            if (!proc.waitFor(3, TimeUnit.SECONDS)) proc.destroyForcibly()
+            if (!proc.waitFor(3, TimeUnit.SECONDS)) {
+                proc.destroyForcibly()
+                // Don't return until the device is actually released — the real capture
+                // runs right after this on the same task (PreviewSource.stop's contract).
+                proc.waitFor(5, TimeUnit.SECONDS)
+            }
         }
         io?.shutdownNow()
         process = null

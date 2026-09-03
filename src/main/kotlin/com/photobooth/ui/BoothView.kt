@@ -95,7 +95,24 @@ class BoothView(
         isMouseTransparent = true
     }
     private val resultOverlay = StackPane().apply { isVisible = false }
-    private val root = StackPane(previewView, overlayPreviewView, idleOverlay, countdownOverlay, resultOverlay).apply { alignment = Pos.CENTER }
+
+    // One reused scrim — it fills the result StackPane via its max size, so there's no
+    // per-result Region with width/height bindings piling listeners onto `root` for the
+    // whole run (a slow leak over a long unattended event).
+    private val resultScrim = Region().apply {
+        styleClass += "result-scrim"
+        maxWidth = Double.MAX_VALUE
+        maxHeight = Double.MAX_VALUE
+    }
+
+    // The live self-view + its overlay sit inside a framed box (`.kiosk-stage` in
+    // kiosk.css) so there's a visible border around the picture instead of it
+    // bleeding to the screen edges. Set that rule's -fx-padding to 0 for
+    // edge-to-edge. The functional overlays (idle QRs, countdown, result) sit
+    // above it at full-screen size, so the QRs still anchor to the real edges.
+    private val selfView = StackPane(previewView, overlayPreviewView)
+    private val stageBox = StackPane(selfView).apply { styleClass += "kiosk-stage" }
+    private val root = StackPane(stageBox, idleOverlay, countdownOverlay, resultOverlay).apply { alignment = Pos.CENTER }
     private val resultGeneration = AtomicLong(0)
     // Guards against two shoots ever running at once — a fast double-tap, the arcade button
     // firing while a phone-triggered shoot (see requestStart) is already underway, or vice versa.
@@ -117,24 +134,35 @@ class BoothView(
     fun show() {
         root.setOnMouseClicked { startSession() }
 
-        // Fill the actual surface, whatever its resolution — no assumed 1024×768.
+        // Fill the framed box (`.kiosk-stage` padding = the border), whatever its resolution —
+        // no assumed 1024×768. The overlay preview tracks the exact same rectangle so it lines up.
         for (view in listOf(previewView, overlayPreviewView)) {
-            view.fitWidthProperty().bind(root.widthProperty())
-            view.fitHeightProperty().bind(root.heightProperty())
+            view.fitWidthProperty().bind(selfView.widthProperty())
+            view.fitHeightProperty().bind(selfView.heightProperty())
         }
 
-        // PhotoBoothApp already created the Scene (the loading screen) and put the stage on
-        // screen / full-screen. Swap in our root rather than replacing the whole Scene, which
-        // would trigger a second full-screen transition and re-show the "press ESC" hint.
-        stage.scene.root = root
-
-        previewSource?.start()
-
+        // Wire the session callbacks BEFORE touching the preview: if previewSource.start()
+        // fails (missing rpicam/ffmpeg binary, camera.type=pi off a Pi), the booth must
+        // still take photos — just without a live self-view — not be half-wired and stuck.
         session.onCountdownTick = { secondsLeft -> Platform.runLater { showCountdown(secondsLeft) } }
         // Runs on PhotoSession's background thread, and blocks until the camera is free — see PreviewSource.stop's contract.
         // A failure here must not sink the shoot silently: let it surface as the session's capture error.
         session.onBeforeCapture = { previewSource?.stop() }
-        session.onPhotoReady = { merged, qrPng, _ -> Platform.runLater { showResult(merged, qrPng) } }
+        session.onPhotoReady = { merged, qrPng, _ ->
+            Platform.runLater {
+                // If showResult itself throws on the FX thread, nothing else would clear
+                // sessionInProgress → the booth would say "busy" forever.
+                runCatching { showResult(merged, qrPng) }
+                    .onFailure { log.error("Couldn't show the result screen — returning to idle", it); abortToIdle() }
+            }
+        }
+
+        // PhotoBoothApp already created the Scene (the loading screen) and sized the stage to
+        // the display. Swap in our root rather than replacing the whole Scene.
+        stage.scene.root = root
+
+        runCatching { previewSource?.start() }
+            .onFailure { log.warn("Live self-view unavailable — the booth runs without it", it) }
     }
 
     /** Called by a touchscreen tap and by [com.photobooth.gpio.Gpio]'s button listener; ignored if a shoot is already running. */
@@ -206,7 +234,7 @@ class BoothView(
      */
     fun updateOverlayPreview(overlayFile: File) {
         Platform.runLater {
-            runCatching { overlayPreviewView.image = Image(overlayFile.toURI().toString()) }
+            runCatching { overlayPreviewView.image = Image(overlayFile.toURI().toString(), true) }
         }
     }
 
@@ -343,12 +371,13 @@ class BoothView(
 
         val generation = resultGeneration.incrementAndGet()
 
-        val photoView = ImageView(Image(merged.toURI().toString())).apply { fitWidth = RESULT_PHOTO_WIDTH; isPreserveRatio = true }
+        // backgroundLoading = true: decoding the full-res PNG just written to the SD card
+        // would otherwise stall the FX thread ~tens–150 ms as the result screen appears.
+        val photoView = ImageView(Image(merged.toURI().toString(), true)).apply { fitWidth = RESULT_PHOTO_WIDTH; isPreserveRatio = true }
         val qrView = ImageView(Image(ByteArrayInputStream(qrPng))).apply { fitWidth = RESULT_QR_WIDTH; isPreserveRatio = true }
         val caption = Label(strings.t("scan_download")).apply { styleClass += "result-caption" }
         resultOverlay.children.setAll(
-            Region().apply { styleClass += "result-scrim" }
-                .also { it.prefWidthProperty().bind(root.widthProperty()); it.prefHeightProperty().bind(root.heightProperty()) },
+            resultScrim,
             VBox(photoView, qrView, caption).apply { styleClass += "result-content" },
         )
         // A tap during the result screen skips the rest of the wait and returns straight to
@@ -370,7 +399,10 @@ class BoothView(
 
     /** No-ops if [generation] is stale — i.e. this result was already dismissed (by a tap) or superseded by a newer one. */
     private fun dismissResult(generation: Long) {
-        if (resultGeneration.get() != generation) return
+        // Bump the generation as we claim it, so a racing second call for the *same* result
+        // (a tap landing just as the auto-dismiss timer fires) is rejected here instead of
+        // running restartPreview() a second time.
+        if (!resultGeneration.compareAndSet(generation, generation + 1)) return
         pendingDismiss?.cancel(false)
         resultOverlay.isVisible = false
         idleOverlay.isVisible = true

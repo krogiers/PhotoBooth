@@ -25,18 +25,23 @@ internal suspend fun PipelineContext<Unit, ApplicationCall>.respondPage(
  * public (Cloudflare tunnel) so a `../` escape is rejected regardless. With
  * [forceDownload] the response is `Content-Disposition: attachment` so an
  * `<a href>` tap saves the file instead of opening it full-screen.
+ *
+ * [cacheControl] defaults to `no-store` — right for private event photos.
+ * Static assets that repeat on every page load (overlay thumbnails) pass a
+ * cacheable value so the phone doesn't re-fetch them on every layout pick.
  */
 internal suspend fun PipelineContext<Unit, ApplicationCall>.serveFileOrNotFound(
     dir: File,
     requestedName: String?,
     forceDownload: Boolean = false,
+    cacheControl: String = "no-store",
 ) {
     val requested = requestedName ?: return call.respond(HttpStatusCode.NotFound)
     val file = File(dir, requested).normalize()
     if (!file.startsWith(dir) || !file.isFile) {
         return call.respond(HttpStatusCode.NotFound)
     }
-    call.response.header(HttpHeaders.CacheControl, "no-store")
+    call.response.header(HttpHeaders.CacheControl, cacheControl)
     if (forceDownload) {
         call.response.header(
             HttpHeaders.ContentDisposition,

@@ -64,11 +64,15 @@ class PhotoBoothComponent internal constructor(
             downloadServer.onStartRequested = value.takeIf { config.remoteStartEnabled }
         }
 
+    private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Idempotent — may be hit from both `PhotoBoothApp.stop()` and its JVM shutdown hook. Each step is guarded so one failure can't skip the rest. */
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
         runCatching { previewSource.stop() }
-        downloadServer.stop()
-        tunnel.stop()
-        gpio.close()
+        runCatching { downloadServer.stop() }
+        runCatching { tunnel.stop() }
+        runCatching { gpio.close() }
     }
 
     companion object {
@@ -101,34 +105,45 @@ class PhotoBoothComponent internal constructor(
             ).apply { start() }
 
             val tunnel = CloudflareTunnel(config.serverPort)
-            log.info("Starting a Cloudflare quick tunnel, this takes a few seconds...")
-            val baseUrl = tunnel.start()
-            log.info("Tunnel ready — photos will be served publicly at {}", baseUrl)
 
-            // /p/{name} is a small page with a preview + Download button, not the raw image —
-            // a tap on a bare image link just opens it full-screen on most phones.
-            val downloadUrlProvider: (String) -> String = { fileName ->
-                lastPhotoFileName.set(fileName) // so /last — the idle screen's "missed your QR?" fallback — can find it
-                "$baseUrl/p/$fileName"
+            // From here on a failure (the tunnel's ~20s timeout is the likely one) must not
+            // leak the already-bound server port, the tunnel subprocess or the GPIO claim —
+            // no PhotoBoothComponent gets constructed to close them, so do it here.
+            try {
+                log.info("Starting a Cloudflare quick tunnel, this takes a few seconds...")
+                val baseUrl = tunnel.start()
+                log.info("Tunnel ready — photos will be served publicly at {}", baseUrl)
+
+                // /p/{name} is a small page with a preview + Download button, not the raw image —
+                // a tap on a bare image link just opens it full-screen on most phones.
+                val downloadUrlProvider: (String) -> String = { fileName ->
+                    lastPhotoFileName.set(fileName) // so /last — the idle screen's "missed your QR?" fallback — can find it
+                    "$baseUrl/p/$fileName"
+                }
+
+                val session = PhotoSession(config, camera, gpio, compositor, qr, downloadUrlProvider, overlaySelection)
+
+                val chooseOverlayQr = if (overlaySelection != null) qr.pngBytes("$baseUrl/choose") else null
+                val lastPhotoQr = qr.pngBytes("$baseUrl/last")
+
+                return PhotoBoothComponent(
+                    config = config,
+                    strings = strings,
+                    gpio = gpio,
+                    session = session,
+                    previewSource = selectPreviewSource(config, camera),
+                    overlaySelection = overlaySelection,
+                    chooseOverlayQr = chooseOverlayQr,
+                    lastPhotoQr = lastPhotoQr,
+                    downloadServer = downloadServer,
+                    tunnel = tunnel,
+                )
+            } catch (e: Throwable) {
+                runCatching { tunnel.stop() }
+                runCatching { downloadServer.stop() }
+                runCatching { gpio.close() }
+                throw e
             }
-
-            val session = PhotoSession(config, camera, gpio, compositor, qr, downloadUrlProvider, overlaySelection)
-
-            val chooseOverlayQr = if (overlaySelection != null) qr.pngBytes("$baseUrl/choose") else null
-            val lastPhotoQr = qr.pngBytes("$baseUrl/last")
-
-            return PhotoBoothComponent(
-                config = config,
-                strings = strings,
-                gpio = gpio,
-                session = session,
-                previewSource = selectPreviewSource(config, camera),
-                overlaySelection = overlaySelection,
-                chooseOverlayQr = chooseOverlayQr,
-                lastPhotoQr = lastPhotoQr,
-                downloadServer = downloadServer,
-                tunnel = tunnel,
-            )
         }
     }
 }
@@ -139,28 +154,29 @@ class PhotoBoothComponent internal constructor(
  * a synthetic placeholder.
  */
 private fun selectCamera(config: AppConfig): Camera {
-    // pi/rpicam wants a numeric --camera index; imagesnap wants a -d device name.
-    val piIndex = config.cameraDevice?.let {
-        it.toIntOrNull() ?: run { log.warn("camera.device='{}' isn't a camera index — ignoring for the Pi camera.", it); null }
-    }
+    // rpicam wants a numeric --camera index; imagesnap wants a -d device name.
+    val webcamDevice = webcamDevice(config)
     return when (config.cameraType) {
         CameraType.PI -> {
-            log.info("camera.type=pi — Pi Camera Module (rpicam-still){}.", config.cameraDevice?.let { " camera $it" } ?: "")
-            LibcameraCamera(cameraIndex = piIndex)
+            log.info("camera.type=pi — Pi Camera Module (rpicam-still) on camera {}.", piCameraIndex(config))
+            LibcameraCamera(cameraIndex = piCameraIndex(config))
         }
         CameraType.WEBCAM -> {
-            log.info("camera.type=webcam — local webcam via imagesnap{}.", config.cameraDevice?.let { " '$it'" } ?: "")
-            ImagesnapCamera(device = config.cameraDevice)
+            log.info("camera.type=webcam — imagesnap, {}.", describeWebcam(webcamDevice))
+            ImagesnapCamera(device = webcamDevice)
         }
         CameraType.PLACEHOLDER -> {
             log.info("camera.type=placeholder — using the synthetic placeholder photo.")
             PlaceholderCamera()
         }
         CameraType.AUTO -> when {
-            isLinux -> LibcameraCamera(cameraIndex = piIndex)
+            isLinux -> {
+                log.info("camera.type=auto on Linux — Pi Camera Module (rpicam-still) on camera {}.", piCameraIndex(config))
+                LibcameraCamera(cameraIndex = piCameraIndex(config))
+            }
             ImagesnapCamera.isAvailable() -> {
-                log.info("Not running on Linux — capturing from the local webcam via imagesnap.")
-                ImagesnapCamera(device = config.cameraDevice)
+                log.info("camera.type=auto — local webcam via imagesnap, {}.", describeWebcam(webcamDevice))
+                ImagesnapCamera(device = webcamDevice)
             }
             else -> {
                 log.warn(
@@ -175,6 +191,26 @@ private fun selectCamera(config: AppConfig): Camera {
 }
 
 /**
+ * Which Pi camera to open. Defaults to `0` rather than leaving `--camera`
+ * off entirely: an unset index lets libcamera pick, and that isn't stable
+ * when several cameras are attached. Set `camera.device` to override.
+ */
+private fun piCameraIndex(config: AppConfig): Int =
+    config.cameraDevice?.toIntOrNull() ?: run {
+        if (!config.cameraDevice.isNullOrBlank()) {
+            log.warn("camera.device='{}' isn't a numeric camera index — using camera 0.", config.cameraDevice)
+        }
+        0
+    }
+
+/** The `imagesnap -d` device name, or null to let macOS pick its default camera. */
+private fun webcamDevice(config: AppConfig): String? = config.cameraDevice?.ifBlank { null }
+
+private fun describeWebcam(device: String?): String =
+    device?.let { "device '$it'" }
+        ?: "the system default camera (set camera.device to a name from `imagesnap -l` to pin it)"
+
+/**
  * Picks how the self-view gets its frames. A real continuous stream is used
  * only when the matching camera is in play: [RpicamPreviewStream] with the Pi
  * Camera (`camera.type=pi`, or `auto` on Linux), [FfmpegPreviewStream] on
@@ -184,8 +220,9 @@ private fun selectPreviewSource(config: AppConfig, camera: Camera): PreviewSourc
     val usingPiCamera = config.cameraType == CameraType.PI ||
         (config.cameraType == CameraType.AUTO && isLinux)
     return when {
-        usingPiCamera -> RpicamPreviewStream(cameraIndex = config.cameraDevice?.toIntOrNull())
-        !isLinux && FfmpegPreviewStream.isAvailable() -> FfmpegPreviewStream(device = config.cameraDevice ?: "0")
+        // Same camera the shutter uses, so the self-view and the photo match.
+        usingPiCamera -> RpicamPreviewStream(cameraIndex = piCameraIndex(config))
+        !isLinux && FfmpegPreviewStream.isAvailable() -> FfmpegPreviewStream(device = webcamDevice(config) ?: "0")
         else -> {
             log.warn(
                 "No live preview stream for this camera/OS — the self-view will be a periodic still " +

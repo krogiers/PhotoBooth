@@ -49,15 +49,30 @@ class AppConfigTest {
     }
 
     @Test
-    fun `window fullscreen defaults on and can be turned off`() {
+    fun `each screen's fullscreen flag defaults on and can be turned off independently`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
-        assertEquals(true, AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30)).windowFullscreen)
+        val defaults = AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+        assertEquals(true, defaults.boothFullscreen)
+        assertEquals(true, defaults.pickerFullscreen)
 
-        val off = AppConfig.load(
-            propsFile("data.dir=${data.path}", "window.fullscreen=false"),
+        val mixed = AppConfig.load(
+            propsFile("data.dir=${data.path}", "screen.booth.fullscreen=false", "screen.picker.fullscreen=true"),
             LocalDate.of(2026, 8, 30),
         )
-        assertEquals(false, off.windowFullscreen)
+        assertEquals(false, mixed.boothFullscreen)
+        assertEquals(true, mixed.pickerFullscreen)
+    }
+
+    @Test
+    fun `smile hold defaults to 1200ms and is overridable`() {
+        val data = Files.createTempDirectory("photobooth-data").toFile()
+        assertEquals(1200L, AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30)).smileHoldMillis)
+
+        val custom = AppConfig.load(
+            propsFile("data.dir=${data.path}", "smile.hold.ms=2500"),
+            LocalDate.of(2026, 8, 30),
+        )
+        assertEquals(2500L, custom.smileHoldMillis)
     }
 
     @Test

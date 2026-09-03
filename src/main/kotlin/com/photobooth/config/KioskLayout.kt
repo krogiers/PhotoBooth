@@ -1,5 +1,6 @@
 package com.photobooth.config
 
+import org.slf4j.LoggerFactory
 import java.util.Properties
 
 /**
@@ -20,11 +21,13 @@ data class KioskLayout(
     val tapHint: DecorPosition,
 ) {
     companion object {
+        private val log = LoggerFactory.getLogger(KioskLayout::class.java)
+
         val DEFAULT = KioskLayout(
             layoutQrEnabled = true,
-            layoutQr = DecorPosition.CENTER_LEFT,
+            layoutQr = DecorPosition.BOTTOM_LEFT,
             recoveryQrEnabled = true,
-            recoveryQr = DecorPosition.CENTER_RIGHT,
+            recoveryQr = DecorPosition.BOTTOM_RIGHT,
             tapHint = DecorPosition.BOTTOM_CENTER,
         )
 
@@ -32,8 +35,14 @@ data class KioskLayout(
             fun flag(key: String, default: Boolean) =
                 props.getProperty(key, default.toString()).trim().toBoolean()
 
+            // A typo in one position key falls back to that element's default with a
+            // warning — it must not take the whole booth to the error screen.
             fun pos(key: String, default: DecorPosition) =
-                props.getProperty(key, "").trim().ifBlank { null }?.let(DecorPosition::parse) ?: default
+                props.getProperty(key, "").trim().ifBlank { null }?.let { raw ->
+                    runCatching { DecorPosition.parse(raw) }
+                        .onFailure { log.warn("{}: {} — using {}", key, it.message, default.name.lowercase().replace('_', '-')) }
+                        .getOrNull()
+                } ?: default
 
             return KioskLayout(
                 layoutQrEnabled = flag("kiosk.qr.layout.enabled", DEFAULT.layoutQrEnabled),

@@ -1,5 +1,6 @@
 package com.photobooth.config
 
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.Properties
 
@@ -75,6 +76,8 @@ data class DecorConfig(
     val isEmpty: Boolean get() = items.isEmpty() && titleText.isNullOrBlank()
 
     companion object {
+        private val log = LoggerFactory.getLogger(DecorConfig::class.java)
+
         /** How many `decor.<n>.*` layers are scanned for. */
         private const val MAX_ITEMS = 20
 
@@ -90,24 +93,36 @@ data class DecorConfig(
         fun from(props: Properties): DecorConfig {
             fun str(key: String) = props.getProperty(key, "").trim().ifBlank { null }
 
+            // One bad key in a layer (a typo'd position, a non-numeric rotate) skips just
+            // that layer with a warning — it must never take the whole booth to the error
+            // screen. Same spirit as a missing decor image, which is already logged + skipped.
             val items = (1..MAX_ITEMS).mapNotNull { n ->
                 val file = str("decor.$n.file")?.let(::File) ?: return@mapNotNull null
-                DecorItem(
-                    file = file,
-                    position = str("decor.$n.position")?.let(DecorPosition::parse) ?: DecorPosition.CENTER,
-                    width = DecorSize.parse(str("decor.$n.width")),
-                    height = DecorSize.parse(str("decor.$n.height")),
-                    rotate = str("decor.$n.rotate")?.toDouble() ?: 0.0,
-                )
+                runCatching {
+                    DecorItem(
+                        file = file,
+                        position = str("decor.$n.position")?.let(DecorPosition::parse) ?: DecorPosition.CENTER,
+                        width = DecorSize.parse(str("decor.$n.width")),
+                        height = DecorSize.parse(str("decor.$n.height")),
+                        rotate = str("decor.$n.rotate")?.toDouble() ?: 0.0,
+                    )
+                }.onFailure { log.warn("decor.{}: skipping this layer — {}", n, it.message) }.getOrNull()
             }
+
+            fun position(key: String, default: DecorPosition) =
+                str(key)?.let { raw ->
+                    runCatching { DecorPosition.parse(raw) }
+                        .onFailure { log.warn("{}: {} — using {}", key, it.message, default.name.lowercase().replace('_', '-')) }
+                        .getOrNull()
+                } ?: default
 
             return DecorConfig(
                 items = items,
                 titleText = str("decor.title.text"),
                 titleFontFile = str("decor.title.font")?.let(::File),
-                titleSize = str("decor.title.size")?.toDouble() ?: NONE.titleSize,
+                titleSize = str("decor.title.size")?.toDoubleOrNull() ?: NONE.titleSize,
                 titleColor = str("decor.title.color") ?: NONE.titleColor,
-                titlePosition = str("decor.title.position")?.let(DecorPosition::parse) ?: NONE.titlePosition,
+                titlePosition = position("decor.title.position", NONE.titlePosition),
             )
         }
     }
