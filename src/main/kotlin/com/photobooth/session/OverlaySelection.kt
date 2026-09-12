@@ -15,7 +15,12 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class OverlaySelection(
     val overlaysDir: File,
-    private val defaultOverlay: File,
+    /**
+     * The overlay used when no guest has picked one. Re-assignable so the
+     * admin panel's "set as default" applies without a restart (the kiosk
+     * reload also refreshes the self-view preview through it).
+     */
+    @Volatile var defaultOverlay: File,
 ) {
     private val selectedFileName = AtomicReference<String?>(null)
 

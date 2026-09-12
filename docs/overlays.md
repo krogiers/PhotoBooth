@@ -11,20 +11,21 @@ before posing.
 `merge(sourcePhoto, overlayFile, outputFile)` draws the overlay on top of the
 photo, stretched to the photo's resolution (so one template works regardless
 of camera resolution), and writes a new PNG. The original capture is never
-modified — it's kept at `data/<date>/originals/<timestamp>.jpg` alongside the
-merged `data/<date>/merged/<timestamp>.png` (the `<date>` folder keeps
-back-to-back events apart — see `data.subdir`).
+modified — it's kept at `<event>/data/<date>/originals/<timestamp>.jpg`
+alongside the merged `<event>/data/<date>/merged/<timestamp>.png` (the
+`<date>` folder keeps back-to-back sessions apart — see `data.subdir`).
 
-`overlay.file` (default [`config/overlay.png`](../config/overlay.png)) is the
-overlay used for every shoot unless the picker below is on and a guest chose
-another.
+`overlay.file` (default `overlay.png`, resolved inside the active event
+bundle) is the overlay used for every shoot unless the picker below is on and
+a guest chose another.
 
 ## Phone-side picker — [`OverlaySelection`](../src/main/kotlin/com/photobooth/session/OverlaySelection.kt)
 
 Set `overlay.selection.enabled=true` and drop one `.png` per option into
-`overlays.dir` (default [`config/overlays/`](../config/overlays/); a few
-samples are included). The idle screen then shows a QR, "scan to choose your
-layout", linking to `/choose` on the
+`overlays.dir` (default `overlays/` inside the active event bundle; the repo
+ships a few samples in `config/overlays/`, migrated into `events/default/` on
+first run). The idle screen then shows a QR, "scan to choose your layout",
+linking to `/choose` on the
 [download server](download-server-and-tunnel.md):
 
 - `/choose` lists every `.png` in `overlays.dir` as tap targets, the current

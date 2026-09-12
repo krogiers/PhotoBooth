@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "1.9.24"
     id("org.openjfx.javafxplugin") version "0.1.0"
     application
+    id("com.gradleup.shadow") version "8.3.5"
 }
 
 group = "com.photobooth"
@@ -24,6 +25,8 @@ dependencies {
     // Embedded HTTP server so the QR code has something to point at
     implementation("io.ktor:ktor-server-core:$ktorVersion")
     implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    // Basic-auth for the LAN admin panel (separate port, never tunnelled)
+    implementation("io.ktor:ktor-server-auth:$ktorVersion")
 
     // Logic-less templates for the phone-facing pages, so their markup lives in
     // editable .mustache files (bundled defaults + per-event config/web/ overrides)
@@ -37,6 +40,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
 
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
 }
 
 javafx {
@@ -60,6 +64,20 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Two ways to run without touching events/_active:
+//   ./gradlew run            → the active event, full-screen (the real booth / Pi)
+//   ./gradlew run -Pdev      → the events/dev bundle, windowed (Mac dev)
+//   ./gradlew run -Pevent=x  → the events/x bundle
+//   ./gradlew run -Pwindowed → the active event, but windowed
+tasks.named<JavaExec>("run") {
+    if (project.hasProperty("dev")) {
+        environment("PHOTOBOOTH_EVENT", "dev")
+        environment("PHOTOBOOTH_WINDOWED", "1")
+    }
+    (project.findProperty("event") as String?)?.let { environment("PHOTOBOOTH_EVENT", it) }
+    if (project.hasProperty("windowed")) environment("PHOTOBOOTH_WINDOWED", "1")
+}
+
 // Render the phone-facing pages with sample data to build/phone-pages-preview/
 // so their styling can be checked in a browser without running the booth.
 tasks.register<JavaExec>("renderPhonePages") {
@@ -69,21 +87,22 @@ tasks.register<JavaExec>("renderPhonePages") {
     mainClass.set("com.photobooth.server.PhonePagesPreviewKt")
 }
 
-// Copy the bundled overridable resources (i18n, phone-page templates, kiosk CSS) into config/
-// as an editable per-event starting point. Existing config/ files are left untouched.
+// Copy the bundled overridable resources (i18n, phone-page templates, kiosk CSS) into the
+// default event bundle as an editable starting point. Existing files are left untouched.
 tasks.register("seedConfig") {
     group = "photobooth"
-    description = "Write the bundled i18n / web / kiosk defaults into config/ so they can be edited without a rebuild."
+    description = "Write the bundled i18n / web / kiosk defaults into events/default/ so they can be edited without a rebuild."
     val projectDir = layout.projectDirectory
     doLast {
+        val event = "events/default"
         val seeds = listOf(
-            "src/main/resources/i18n/en.properties" to "config/i18n/en.properties",
-            "src/main/resources/i18n/nl.properties" to "config/i18n/nl.properties",
-            "src/main/resources/web/photo.mustache" to "config/web/photo.mustache",
-            "src/main/resources/web/choose.mustache" to "config/web/choose.mustache",
-            "src/main/resources/web/message.mustache" to "config/web/message.mustache",
-            "src/main/resources/web/style.css" to "config/web/style.css",
-            "src/main/resources/kiosk/kiosk.css" to "config/kiosk/kiosk.css",
+            "src/main/resources/i18n/en.properties" to "$event/i18n/en.properties",
+            "src/main/resources/i18n/nl.properties" to "$event/i18n/nl.properties",
+            "src/main/resources/web/photo.mustache" to "$event/web/photo.mustache",
+            "src/main/resources/web/choose.mustache" to "$event/web/choose.mustache",
+            "src/main/resources/web/message.mustache" to "$event/web/message.mustache",
+            "src/main/resources/web/style.css" to "$event/web/style.css",
+            "src/main/resources/kiosk/kiosk.css" to "$event/kiosk/kiosk.css",
         )
         var written = 0
         seeds.forEach { (from, to) ->
@@ -103,4 +122,22 @@ tasks.register("seedConfig") {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// A single self-contained jar — every dependency (including the platform's
+// JavaFX natives) bundled in, Main-Class set from `application.mainClass`.
+// `java -jar build/libs/photobooth.jar` runs it directly, no classpath/module
+// flags needed.
+//
+// JavaFX's natives are resolved for whatever machine runs `shadowJar` — the
+// org.openjfx Gradle plugin picks them by the *build* machine's OS/arch and
+// (as of this plugin version) can't be told to target a different one, so
+// this must be run ON the Pi to get a Pi-runnable jar. Once built there,
+// that one jar file is what you copy around (to another Pi, as a backup,
+// …) — see docs/pi-deployment.md.
+tasks.shadowJar {
+    archiveBaseName.set("photobooth")
+    archiveClassifier.set("")
+    archiveVersion.set("")
+    mergeServiceFiles()
 }

@@ -22,7 +22,7 @@ the merged-photos directory and a handful of small phone-facing pages:
 | `/last` | Redirects to whichever photo was taken most recently — the idle screen's "missed your QR?" recovery. A single ever-changing slot, not a gallery: it only helps a guest if no *later* group has shot since. Photo *files* are never deleted (kept under `data/<date>/`), but every guest-facing URL is a `trycloudflare.com` host that dies when the booth shuts down — only a photo the guest actually **downloaded** survives past the event. |
 | `/choose`, `/choose/{name}`, `/overlays/{name}` | Phone-side layout picker — only mounted when `overlay.selection.enabled=true`. See [`overlays.md`](overlays.md). |
 | `/shoot`, `/shoot/wait` | Start the countdown from the phone (the button on `/choose`), then poll until this shoot's photo is ready and redirect to it. Only when `remote_start.enabled=true`. See [`remote-start.md`](remote-start.md). |
-| `/web/{file}` | The phone pages' stylesheet / logo / fonts, `config/web/` winning over the bundled copy. See [`phone-pages.md`](phone-pages.md). |
+| `/web/{file}` | The phone pages' stylesheet / logo / fonts, `events/<id>/web/` winning over the bundled copy. See [`phone-pages.md`](phone-pages.md). |
 | `/preview` | Renders every phone page with sample data, for tweaking the styling on a phone without taking a real photo. |
 
 The HTML pages themselves are Mustache templates, rebrandable per event —

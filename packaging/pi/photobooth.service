@@ -1,0 +1,26 @@
+# systemd --user unit: launches the booth automatically once the Pi's
+# graphical session is up (desktop autologin), and restarts it if it crashes.
+# Install: see docs/pi-deployment.md.
+#
+# %h expands to the service user's home directory, so this file needs no
+# editing as long as the repo lives directly under $HOME (e.g. ~/PhotoBooth).
+# If it lives somewhere else, change the path in ExecStart to match.
+
+[Unit]
+Description=PhotoBooth kiosk
+# Only start once there's a graphical session to put windows on — JavaFX
+# needs a real display, not a headless one.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/java -jar %h/PhotoBooth/build/libs/photobooth.jar
+WorkingDirectory=%h/PhotoBooth
+Restart=on-failure
+RestartSec=5
+# Belt-and-braces: most desktop sessions already export this, but a bare
+# X11 session might not.
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=graphical-session.target

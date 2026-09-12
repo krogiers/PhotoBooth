@@ -1,5 +1,7 @@
-# Copy to photobooth.properties (same directory) and adjust for your hardware/venue.
-# photobooth.properties is git-ignored so per-booth settings don't get committed.
+# Reference for every key the booth reads. Settings are per event: the live
+# copy is events/<id>/photobooth.properties (git-ignored), and events/_active
+# names the event the booth loads. See docs/events.md. On first run a legacy
+# config/photobooth.properties here is migrated into events/default/.
 
 # Which Camera implementation to use:
 #   auto        - Pi camera (rpicam-still) on Linux, else a Mac webcam via
@@ -100,6 +102,18 @@ preview.interval.ms=1000
 # phone reaches their photo over its own mobile data — no network switching,
 # no venue Wi-Fi needed. The tunnel takes a few extra seconds at startup.
 server.port=8080
+
+# ---- Admin panel --------------------------------------------------------------
+# A small web panel for tweaking this event's settings, text and overlays. It
+# runs on its OWN port (admin.port), so only server.port above is ever fronted
+# by the Cloudflare tunnel — the admin panel is reachable on the local network
+# only. Open http://<this-machine-ip>:<admin.port>/ and log in as user "admin".
+# Off unless admin.enabled=true AND admin.password is set (non-blank).
+# These keys are read per event like everything else, but you'll usually want
+# the same values in every event bundle.
+admin.enabled=false
+admin.port=8081
+admin.password=
 
 # Where photos are written, relative to the working directory the app is
 # launched from. Each run's photos go under data.dir/<subfolder>/ (originals/

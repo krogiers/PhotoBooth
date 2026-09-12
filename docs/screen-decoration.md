@@ -5,14 +5,14 @@
 Each event wants the kiosk's idle screen dressed to match its invitation — a
 bunting garland, a landmark or mascot graphic, the party's name in its own
 font. That has to be swappable per event **without a rebuild**, the same idea
-as `config/web/` (phone pages) and `config/i18n/` (wording).
+as `events/<id>/web/` (phone pages) and `events/<id>/i18n/` (wording).
 
 With nothing configured the idle screen looks exactly as before.
 
 ## How it works
 
 [`DecorConfig`](../src/main/kotlin/com/photobooth/config/DecorConfig.kt) is
-read from `config/photobooth.properties` at startup and handed to
+read from `events/<id>/photobooth.properties` at startup and handed to
 [`BoothView`](../src/main/kotlin/com/photobooth/ui/BoothView.kt), which draws
 a mouse-transparent decoration layer *behind* the QRs and "Tap to start", on
 the **idle screen only** (it's hidden during the countdown and result
@@ -28,7 +28,7 @@ back-to-front.
 
 | Key | Meaning |
 | --- | --- |
-| `decor.<n>.file` | path to the image, e.g. `config/decor/wimpels.png` |
+| `decor.<n>.file` | path to the image, relative to the event bundle (e.g. `decor/wimpels.png`); an absolute path also works |
 | `decor.<n>.position` | `top-left` … `bottom-right` (9-way, see below) |
 | `decor.<n>.width` | `NN` px, or `NN%` of the screen width |
 | `decor.<n>.height` | `NN` px, or `NN%` of the screen height |
@@ -43,7 +43,7 @@ both to stretch; give neither for the image's natural size.
 `.size`, `.color` (`#rrggbb`), `.position`. Leave `decor.title.text` blank to
 use an image layer as the title instead. Its **drop shadow** (and anything
 else CSS-expressible — rotation, opacity, a plate behind it) is the
-`.decor-title` rule in `config/kiosk/kiosk.css`, not a `decor.*` key.
+`.decor-title` rule in `events/<id>/kiosk/kiosk.css`, not a `decor.*` key.
 
 ### Positions
 
@@ -53,7 +53,7 @@ else CSS-expressible — rotation, opacity, a plate behind it) is the
 ## Where the QRs and "tap to start" sit
 
 Each QR can be switched on/off, and all three are placed by `kiosk.*` keys
-in `config/photobooth.properties` — same position vocabulary as above:
+in `events/<id>/photobooth.properties` — same position vocabulary as above:
 
 ```properties
 kiosk.qr.layout.enabled=true             # the "choose your layout" QR
@@ -68,54 +68,57 @@ between them.
 
 (The layout QR also needs `overlay.selection.enabled` to have a page to
 point at.) Their *styling* (font, colour, shadow) is `.qr-tile` /
-`.qr-caption` / `.tap-hint` in `config/kiosk/kiosk.css`; these keys are only
+`.qr-caption` / `.tap-hint` in `events/<id>/kiosk/kiosk.css`; these keys are only
 whether/where they go.
 
 ## Assets
 
-Put the files in `config/decor/` (git-ignored). Names are up to you — the
+Put the files in `events/<id>/decor/` (git-ignored). Names are up to you — the
 keys point at them. **Use transparent PNGs**: the idle screen shows the live
 camera self-view behind the decoration, so a layer with an opaque or
 gradient background shows up as a rectangle. Export each element as its own
 cut-out PNG from the invitation's source file (Canva / Illustrator / …).
 
-## Example (`config/photobooth.properties`)
+## Example (`events/<id>/photobooth.properties`)
+
+Paths are relative to the event bundle — the images sit in `events/<id>/decor/`.
 
 ```properties
 # flags tilted into the top-left corner
-decor.1.file=config/decor/wimpels.png
+decor.1.file=decor/wimpels.png
 decor.1.position=top-left
 decor.1.width=48%
 decor.1.rotate=-10
 
 # the party name where a title would go
-decor.2.file=config/decor/uitzwaaifeest.png
+decor.2.file=decor/uitzwaaifeest.png
 decor.2.position=top-center
 decor.2.width=42%
 
-# a signpost, top-right; the recovery QR sits under it
-decor.3.file=config/decor/wegwijzer.png
+# a signpost, top-right
+decor.3.file=decor/wegwijzer.png
 decor.3.position=top-right
 decor.3.height=58%
 
 kiosk.qr.recovery.position=bottom-right
 ```
 
-## Styling every kiosk screen (`config/kiosk/kiosk.css`)
+## Styling every kiosk screen (`events/<id>/kiosk/kiosk.css`)
 
 **Nothing visual is hard-coded in the kiosk anymore.** Every colour, font,
 weight, size, shadow and background is a rule in a stylesheet — the same
-override model as the phone pages' `config/web/`:
+override model as the phone pages' `events/<id>/web/`:
 
 | Layer | Location |
 | --- | --- |
 | Bundled default | [`src/main/resources/kiosk/kiosk.css`](../src/main/resources/kiosk/kiosk.css) |
-| Per-event override | `config/kiosk/kiosk.css` (git-ignored), layered on top |
+| Per-event override | `events/<id>/kiosk/kiosk.css` (git-ignored), layered on top |
 
 JavaFX CSS — properties are `-fx-` prefixed (`-fx-background-color`,
 `-fx-font-size`, `-fx-font-weight`, `-fx-text-fill`, `-fx-effect: dropshadow(...)`,
-…). For a custom font: `@font-face { src: url("config/kiosk/yourfont.ttf"); }`
-then `-fx-font-family: "Your Font";` on the classes you want. Copy the rules
+…). For a custom font, drop the file next to `kiosk.css` in the bundle and
+`@font-face { src: url("yourfont.ttf"); }` (the url is relative to the
+stylesheet), then `-fx-font-family: "Your Font";` on the classes you want. Copy the rules
 you want to change from the bundled file; a missing/empty override just
 leaves the defaults.
 

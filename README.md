@@ -24,12 +24,16 @@ kept too.
 
 ## Configuration
 
-Copy `config/photobooth.properties.example` to `config/photobooth.properties`
-and adjust it — that file is the annotated source of truth for every key.
-Replace `config/overlay.png` with your event's transparent PNG overlay.
+Settings are per event, in a self-contained bundle under `events/<id>/` —
+`config/photobooth.properties.example` is the annotated reference for every
+key. See [`docs/events.md`](docs/events.md) for the bundle layout and the
+admin panel that edits it from a browser.
 
-`config/photobooth.properties`, `config/overlay.png`, `config/overlays/` and
-`config/i18n/` are all read at startup and need no rebuild.
+## Deploying to the Pi
+
+[`docs/pi-deployment.md`](docs/pi-deployment.md) — building on the Pi itself
+(not copying a Mac/Windows build over), desktop autologin, and a systemd
+service so the booth comes up on its own when the Pi is powered on.
 
 ## How it works
 
@@ -39,10 +43,12 @@ needs, are split out per subsystem:
 
 | Doc | Covers |
 | --- | --- |
+| [`docs/events.md`](docs/events.md) | Per-event settings bundles under `events/`, the `_active` pointer, legacy `config/` migration, and the phased admin panel |
+| [`docs/pi-deployment.md`](docs/pi-deployment.md) | Building on the Pi, desktop autologin, and the systemd service for autostart-on-boot |
 | [`docs/camera-and-preview.md`](docs/camera-and-preview.md) | Camera backends (`pi` / `webcam` / `placeholder`), the live self-view streams vs. the still-grab fallback, and the capture-vs-preview race |
 | [`docs/download-server-and-tunnel.md`](docs/download-server-and-tunnel.md) | The embedded HTTP server, its phone-facing routes (`/p`, `/last`, …), and the Cloudflare quick tunnel that exposes it |
-| [`docs/phone-pages.md`](docs/phone-pages.md) | The pages a guest's phone opens, and rebranding them per event (`config/web/`, `/preview`) |
-| [`docs/screen-decoration.md`](docs/screen-decoration.md) | Dressing the kiosk idle screen per event — bunting, a graphic, a titled font, QR positions, `config/kiosk/kiosk.css` |
+| [`docs/phone-pages.md`](docs/phone-pages.md) | The pages a guest's phone opens, and rebranding them per event (`<event>/web/`, `/preview`) |
+| [`docs/screen-decoration.md`](docs/screen-decoration.md) | Dressing the kiosk idle screen per event — bunting, a graphic, a titled font, QR positions, `<event>/kiosk/kiosk.css` |
 | [`docs/second-screen.md`](docs/second-screen.md) | The optional operator screen on a 2nd display — layout gallery + a red shoot button (`secondscreen.enabled`) |
 | [`docs/customising.md`](docs/customising.md) | The full list of what you can change per event without a rebuild, and `./gradlew seedConfig` |
 | [`docs/overlays.md`](docs/overlays.md) | Overlay compositing and the optional phone-side layout picker |

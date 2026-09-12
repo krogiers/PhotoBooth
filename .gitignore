@@ -3,22 +3,22 @@ build/
 out/
 *.class
 
-# Per-booth configuration (pins, host, etc.) — copy from photobooth.properties.example
+# Per-event settings bundles (photobooth.properties, overlays/, decor/, i18n/,
+# web/, kiosk/, data/) and the _active pointer — see docs/events.md.
+# Seed the override files with `./gradlew seedConfig`.
+events/
+
+# Legacy pre-events flat config (migrated into events/default/ on first run).
+# photobooth.properties.example stays tracked as the reference.
 config/photobooth.properties
-
-# Per-event text overrides / extra languages — seed with `./gradlew seedConfig`
+config/overlay.png
 config/i18n/
-
-# Per-event phone-page branding (overrides src/main/resources/web/) — style.css, logo.*, templates
 config/web/
-
-# Per-event idle-screen decoration — bunting.png, a graphic, title.ttf
 config/decor/
-
-# Per-event kiosk styling — kiosk.css (splash / error screens)
 config/kiosk/
+config/overlays/
 
-# Captured/generated photos and QR codes
+# Captured/generated photos
 data/
 
 .idea/

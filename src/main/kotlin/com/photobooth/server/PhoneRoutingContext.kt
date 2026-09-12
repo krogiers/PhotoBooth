@@ -14,7 +14,8 @@ import java.util.concurrent.atomic.AtomicReference
 internal class PhoneRoutingContext(
     val photosDir: File,
     val pages: PhonePages,
-    val strings: Strings,
+    /** `@Volatile var` so the admin panel's text editor can swap in re-loaded strings without a restart. */
+    @Volatile var strings: Strings,
     val lastPhotoFileName: AtomicReference<String?>,
     val overlaySelection: OverlaySelection?,
 ) {

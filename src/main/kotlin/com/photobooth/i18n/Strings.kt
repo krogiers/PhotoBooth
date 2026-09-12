@@ -46,8 +46,26 @@ class Strings private constructor(private val translations: Map<String, String>)
     fun list(key: String, delimiter: Char = ','): List<String> =
         (translations[key] ?: "").split(delimiter).map(String::trim).filter(String::isNotEmpty)
 
+    /** The full merged key→text map (bundled ← language ← event override), for the admin panel's read-only text view. */
+    fun asMap(): Map<String, String> = translations.toSortedMap()
+
     companion object {
         private const val FALLBACK_LANGUAGE = "en"
+
+        /** Language codes with text bundled in the jar. Others work too via an `i18n/<code>.properties` override. */
+        val BUILT_IN: List<String> = listOf("en", "nl")
+
+        /**
+         * The bundled text for [code] — the English base, then that language's
+         * bundled file if it's built in — with **no** event override applied.
+         * The admin text editor's "default" column and the base it diffs an
+         * override against.
+         */
+        fun bundledDefaults(code: String): Map<String, String> {
+            val merged = LinkedHashMap(loadBundled(FALLBACK_LANGUAGE).orEmpty())
+            if (code != FALLBACK_LANGUAGE) loadBundled(code)?.let(merged::putAll)
+            return merged
+        }
 
         fun load(languageCode: String, overridesDir: File = File("config/i18n")): Strings {
             val fallback = loadBundled(FALLBACK_LANGUAGE)

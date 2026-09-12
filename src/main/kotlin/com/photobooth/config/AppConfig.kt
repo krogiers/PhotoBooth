@@ -23,11 +23,17 @@ enum class CameraType {
 }
 
 /**
- * Central configuration. Reads `config/photobooth.properties` next to the
- * application if present, falling back to sane defaults so the app can be
- * launched on a dev machine without any GPIO/camera hardware attached.
+ * Central configuration for one event. Reads `<eventDir>/photobooth.properties`
+ * ([EventBundle.propertiesFile]) if present, falling back to sane defaults so
+ * the app runs on a dev machine with no GPIO/camera hardware and no bundle at
+ * all. Path-valued keys (`overlay.file`, `overlays.dir`, `data.dir`,
+ * `decor.<n>.file`) resolve **relative to the event bundle**.
  */
 data class AppConfig(
+    /** The event bundle this config was loaded from — see [EventBundle]. */
+    val eventDir: File,
+    /** The active event's id (`events/<id>`). */
+    val eventId: String,
     val cameraType: CameraType,
     /**
      * Which physical camera to use when the machine has more than one.
@@ -125,25 +131,36 @@ data class AppConfig(
      */
     val windowWidth: Int?,
     val windowHeight: Int?,
+    /**
+     * Whether the LAN admin panel runs (`admin.enabled`, default `false`). It
+     * listens on [adminPort] — a **separate** port from [serverPort], so only
+     * the guest port is ever fronted by the Cloudflare tunnel. Needs a
+     * non-blank [adminPassword] or it stays off.
+     */
+    val adminEnabled: Boolean,
+    /** Port the admin panel listens on (`admin.port`, default `8081`). Never tunnelled. */
+    val adminPort: Int,
+    /** Admin-panel password (`admin.password`); blank/null keeps the panel off even with [adminEnabled]. */
+    val adminPassword: String?,
 ) {
     val originalsDir: File get() = File(sessionDir, "originals")
     val mergedDir: File get() = File(sessionDir, "merged")
 
     companion object {
-        fun load(
-            file: File = File("config/photobooth.properties"),
-            today: LocalDate = LocalDate.now(),
-        ): AppConfig {
+        /** Convenience for the composition root / previews — loads the currently-active event bundle. */
+        fun load(today: LocalDate = LocalDate.now()): AppConfig = load(EventStore().active(), today)
+
+        fun load(bundle: EventBundle, today: LocalDate = LocalDate.now()): AppConfig {
             val props = Properties()
-            if (file.exists()) {
-                file.inputStream().use { props.load(it) }
-            }
+            bundle.propertiesFile.takeIf { it.isFile }?.inputStream()?.use { props.load(it) }
 
             fun prop(key: String, default: String) = props.getProperty(key, default)
 
-            val dataDir = File(prop("data.dir", "data"))
+            val dataDir = bundle.resolve(prop("data.dir", "data"))
             val sessionDir = File(dataDir, prop("data.subdir", "").ifBlank { today.toString() })
             val config = AppConfig(
+                eventDir = bundle.dir,
+                eventId = bundle.id,
                 cameraType = CameraType.parse(prop("camera.type", "auto")),
                 cameraDevice = prop("camera.device", "").ifBlank { null },
                 buttonGpioPin = prop("gpio.button.pin", "17").toInt(),
@@ -155,13 +172,13 @@ data class AppConfig(
                 serverPort = prop("server.port", "8080").toInt(),
                 dataDir = dataDir,
                 sessionDir = sessionDir,
-                overlayFile = File(prop("overlay.file", "config/overlay.png")),
+                overlayFile = bundle.resolve(prop("overlay.file", "overlay.png")),
                 overlaySelectionEnabled = prop("overlay.selection.enabled", "false").toBoolean(),
-                overlaysDir = File(prop("overlays.dir", "config/overlays")),
+                overlaysDir = bundle.resolve(prop("overlays.dir", "overlays")),
                 language = prop("ui.language", "en"),
                 remoteStartEnabled = prop("remote_start.enabled", "true").toBoolean(),
                 webBrandName = prop("web.brand.name", "").ifBlank { null },
-                decor = DecorConfig.from(props),
+                decor = DecorConfig.from(props, bundle.dir),
                 kioskLayout = KioskLayout.from(props),
                 secondScreenEnabled = prop("secondscreen.enabled", "false").toBoolean(),
                 boothDisplay = prop("screen.booth.display", "0").toInt(),
@@ -170,6 +187,9 @@ data class AppConfig(
                 pickerFullscreen = prop("screen.picker.fullscreen", "true").toBoolean(),
                 windowWidth = prop("window.width", "").trim().toIntOrNull(),
                 windowHeight = prop("window.height", "").trim().toIntOrNull(),
+                adminEnabled = prop("admin.enabled", "false").toBoolean(),
+                adminPort = prop("admin.port", "8081").toInt(),
+                adminPassword = prop("admin.password", "").ifBlank { null },
             )
             listOf(config.originalsDir, config.mergedDir).forEach { it.mkdirs() }
             return config

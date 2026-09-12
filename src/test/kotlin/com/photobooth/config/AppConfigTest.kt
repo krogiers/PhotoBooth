@@ -9,15 +9,16 @@ import kotlin.test.assertTrue
 
 class AppConfigTest {
 
-    private fun propsFile(vararg lines: String): File {
-        val dir = Files.createTempDirectory("photobooth-config").toFile()
-        return File(dir, "photobooth.properties").apply { writeText(lines.joinToString("\n")) }
+    private fun bundle(vararg lines: String): EventBundle {
+        val dir = Files.createTempDirectory("photobooth-event").toFile()
+        File(dir, "photobooth.properties").writeText(lines.joinToString("\n"))
+        return EventBundle(dir)
     }
 
     @Test
     fun `photos go under a per-session subfolder named for the date`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
-        val config = AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+        val config = AppConfig.load(bundle("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
 
         assertEquals(File(data, "2026-08-30"), config.sessionDir)
         assertEquals(File(data, "2026-08-30/originals"), config.originalsDir)
@@ -28,14 +29,14 @@ class AppConfigTest {
     @Test
     fun `second screen is off by default with sensible display indices`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
-        val config = AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+        val config = AppConfig.load(bundle("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
 
         assertEquals(false, config.secondScreenEnabled)
         assertEquals(0, config.boothDisplay)
         assertEquals(1, config.pickerDisplay)
 
         val on = AppConfig.load(
-            propsFile(
+            bundle(
                 "data.dir=${data.path}",
                 "secondscreen.enabled=true",
                 "screen.booth.display=1",
@@ -51,12 +52,12 @@ class AppConfigTest {
     @Test
     fun `each screen's fullscreen flag defaults on and can be turned off independently`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
-        val defaults = AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+        val defaults = AppConfig.load(bundle("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
         assertEquals(true, defaults.boothFullscreen)
         assertEquals(true, defaults.pickerFullscreen)
 
         val mixed = AppConfig.load(
-            propsFile("data.dir=${data.path}", "screen.booth.fullscreen=false", "screen.picker.fullscreen=true"),
+            bundle("data.dir=${data.path}", "screen.booth.fullscreen=false", "screen.picker.fullscreen=true"),
             LocalDate.of(2026, 8, 30),
         )
         assertEquals(false, mixed.boothFullscreen)
@@ -66,20 +67,49 @@ class AppConfigTest {
     @Test
     fun `smile hold defaults to 1200ms and is overridable`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
-        assertEquals(1200L, AppConfig.load(propsFile("data.dir=${data.path}"), LocalDate.of(2026, 8, 30)).smileHoldMillis)
+        assertEquals(1200L, AppConfig.load(bundle("data.dir=${data.path}"), LocalDate.of(2026, 8, 30)).smileHoldMillis)
 
         val custom = AppConfig.load(
-            propsFile("data.dir=${data.path}", "smile.hold.ms=2500"),
+            bundle("data.dir=${data.path}", "smile.hold.ms=2500"),
             LocalDate.of(2026, 8, 30),
         )
         assertEquals(2500L, custom.smileHoldMillis)
     }
 
     @Test
+    fun `admin panel is off by default, on its own port, with a password`() {
+        val data = Files.createTempDirectory("photobooth-data").toFile()
+        val off = AppConfig.load(bundle("data.dir=${data.path}"), LocalDate.of(2026, 8, 30))
+        assertEquals(false, off.adminEnabled)
+        assertEquals(8081, off.adminPort)
+        assertEquals(null, off.adminPassword)
+
+        val on = AppConfig.load(
+            bundle("data.dir=${data.path}", "admin.enabled=true", "admin.port=9000", "admin.password=hunter2"),
+            LocalDate.of(2026, 8, 30),
+        )
+        assertEquals(true, on.adminEnabled)
+        assertEquals(9000, on.adminPort)
+        assertEquals("hunter2", on.adminPassword)
+    }
+
+    @Test
+    fun `relative path keys resolve inside the event bundle`() {
+        val b = bundle("") // all defaults
+        val config = AppConfig.load(b, LocalDate.of(2026, 8, 30))
+
+        assertEquals(b.dir.name, config.eventId)
+        assertEquals(b.dir, config.eventDir)
+        assertEquals(File(b.dir, "overlay.png"), config.overlayFile)
+        assertEquals(File(b.dir, "overlays"), config.overlaysDir)
+        assertEquals(File(b.dir, "data/2026-08-30"), config.sessionDir)
+    }
+
+    @Test
     fun `data_subdir overrides the date, for a named event`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
         val config = AppConfig.load(
-            propsFile("data.dir=${data.path}", "data.subdir=tibo-uitzwaai"),
+            bundle("data.dir=${data.path}", "data.subdir=tibo-uitzwaai"),
             LocalDate.of(2026, 8, 30),
         )
 
@@ -90,7 +120,7 @@ class AppConfigTest {
     fun `a blank data_subdir falls back to the date`() {
         val data = Files.createTempDirectory("photobooth-data").toFile()
         val config = AppConfig.load(
-            propsFile("data.dir=${data.path}", "data.subdir=  "),
+            bundle("data.dir=${data.path}", "data.subdir=  "),
             LocalDate.of(2026, 1, 2),
         )
 

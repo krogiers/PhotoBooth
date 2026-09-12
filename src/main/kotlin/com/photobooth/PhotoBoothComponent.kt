@@ -11,6 +11,8 @@ import com.photobooth.camera.impl.RpicamPreviewStream
 import com.photobooth.camera.impl.SynchronizedCamera
 import com.photobooth.config.AppConfig
 import com.photobooth.config.CameraType
+import com.photobooth.config.EventBundle
+import com.photobooth.config.EventStore
 import com.photobooth.gpio.Gpio
 import com.photobooth.gpio.impl.Pi4jGpioController
 import com.photobooth.gpio.impl.SimulatedGpioController
@@ -20,6 +22,8 @@ import com.photobooth.qrcode.QrCodeGenerator
 import com.photobooth.server.CloudflareTunnel
 import com.photobooth.server.DownloadServer
 import com.photobooth.server.PhonePages
+import com.photobooth.server.admin.AdminContext
+import com.photobooth.server.admin.AdminServer
 import com.photobooth.session.OverlaySelection
 import com.photobooth.session.PhotoSession
 import org.slf4j.LoggerFactory
@@ -41,6 +45,8 @@ private val isLinux = System.getProperty("os.name").lowercase().contains("linux"
  */
 class PhotoBoothComponent internal constructor(
     val config: AppConfig,
+    /** The active event bundle this graph was built from — see [EventBundle]. */
+    val bundle: EventBundle,
     val strings: Strings,
     val gpio: Gpio,
     val session: PhotoSession,
@@ -52,6 +58,10 @@ class PhotoBoothComponent internal constructor(
     val lastPhotoQr: ByteArray,
     private val downloadServer: DownloadServer,
     private val tunnel: CloudflareTunnel,
+    /** The LAN admin panel, or null when `admin.enabled=false` / no password — see [AdminServer]. */
+    private val adminServer: AdminServer?,
+    /** The admin panel's shared context (only when [adminServer] is up) — carries the [onReloadRequested] hook. */
+    private val adminContext: AdminContext?,
 ) : AutoCloseable {
 
     /**
@@ -64,12 +74,27 @@ class PhotoBoothComponent internal constructor(
             downloadServer.onStartRequested = value.takeIf { config.remoteStartEnabled }
         }
 
+    /**
+     * Set by `PhotoBoothApp`: called (on a Netty thread) after the admin panel
+     * writes a *live* settings change, to rebuild the kiosk UI from freshly
+     * loaded config. No-op when there's no admin panel.
+     */
+    var onReloadRequested: (() -> Unit)?
+        get() = adminContext?.reloadHook
+        set(value) { adminContext?.reloadHook = value }
+
+    /** Point the phone pages at re-loaded [Strings] after an admin text edit (kiosk text is refreshed by rebuilding `BoothView`). */
+    fun refreshStrings(strings: Strings) {
+        downloadServer.strings = strings
+    }
+
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** Idempotent — may be hit from both `PhotoBoothApp.stop()` and its JVM shutdown hook. Each step is guarded so one failure can't skip the rest. */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         runCatching { previewSource.stop() }
+        runCatching { adminServer?.stop() }
         runCatching { downloadServer.stop() }
         runCatching { tunnel.stop() }
         runCatching { gpio.close() }
@@ -82,9 +107,12 @@ class PhotoBoothComponent internal constructor(
          * `cloudflared` never reports a public URL.
          */
         fun build(
-            config: AppConfig = AppConfig.load(),
-            strings: Strings = Strings.load(config.language),
+            store: EventStore = EventStore(),
+            bundle: EventBundle = store.active(),
+            config: AppConfig = AppConfig.load(bundle),
+            strings: Strings = Strings.load(config.language, bundle.i18nDir),
         ): PhotoBoothComponent {
+            log.info("Loading event '{}' from {}", bundle.id, bundle.dir)
             val camera = SynchronizedCamera(selectCamera(config))
             val gpio = selectGpio(config)
             val compositor = OverlayCompositor()
@@ -94,7 +122,7 @@ class PhotoBoothComponent internal constructor(
             } else null
 
             val lastPhotoFileName = AtomicReference<String?>(null)
-            val phonePages = PhonePages(brandName = config.webBrandName, lang = config.language)
+            val phonePages = PhonePages(webDir = bundle.webDir, brandName = config.webBrandName, lang = config.language)
             val downloadServer = DownloadServer(
                 config.serverPort,
                 config.mergedDir,
@@ -126,8 +154,12 @@ class PhotoBoothComponent internal constructor(
                 val chooseOverlayQr = if (overlaySelection != null) qr.pngBytes("$baseUrl/choose") else null
                 val lastPhotoQr = qr.pngBytes("$baseUrl/last")
 
+                val adminContext = AdminContext(store, bundle, config, strings)
+                val adminServer = startAdminServer(config, adminContext)
+
                 return PhotoBoothComponent(
                     config = config,
+                    bundle = bundle,
                     strings = strings,
                     gpio = gpio,
                     session = session,
@@ -137,6 +169,8 @@ class PhotoBoothComponent internal constructor(
                     lastPhotoQr = lastPhotoQr,
                     downloadServer = downloadServer,
                     tunnel = tunnel,
+                    adminServer = adminServer,
+                    adminContext = adminContext.takeIf { adminServer != null },
                 )
             } catch (e: Throwable) {
                 runCatching { tunnel.stop() }
@@ -145,6 +179,26 @@ class PhotoBoothComponent internal constructor(
                 throw e
             }
         }
+    }
+}
+
+/**
+ * Starts the LAN admin panel on its own port, or returns null when it's off
+ * (`admin.enabled=false`) or misconfigured (blank `admin.password`). A failure
+ * to bind the port is logged, not fatal — the booth runs without the panel.
+ */
+private fun startAdminServer(config: AppConfig, ctx: AdminContext): AdminServer? {
+    if (!config.adminEnabled) return null
+    val password = config.adminPassword
+    if (password.isNullOrBlank()) {
+        log.warn("admin.enabled=true but admin.password is blank — the admin panel stays off.")
+        return null
+    }
+    return runCatching {
+        AdminServer(config.adminPort, password, ctx).apply { start() }
+    }.getOrElse {
+        log.warn("Admin panel failed to start on port {} ({}) — continuing without it.", config.adminPort, it.message)
+        null
     }
 }
 
@@ -182,7 +236,7 @@ private fun selectCamera(config: AppConfig): Camera {
                 log.warn(
                     "Not running on Linux and `imagesnap` isn't installed — using a synthetic placeholder photo. " +
                         "Run `brew install imagesnap` to capture from this Mac's webcam instead, " +
-                        "or set camera.type explicitly in config/photobooth.properties."
+                        "or set camera.type explicitly in the event's photobooth.properties."
                 )
                 PlaceholderCamera()
             }

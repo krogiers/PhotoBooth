@@ -1,5 +1,6 @@
 package com.photobooth.server
 
+import com.photobooth.config.EventStore
 import java.io.File
 
 /**
@@ -12,12 +13,13 @@ import java.io.File
  * open build/phone-pages-preview/index.html
  * ```
  *
- * It reads `config/web/` overrides just like the running server does, so
- * this is the fast edit loop: change `config/web/style.css`, re-run, refresh.
+ * It reads the active event's `web/` overrides just like the running server
+ * does, so this is the fast edit loop: change `events/<id>/web/style.css`,
+ * re-run, refresh.
  */
 fun main() {
     val outDir = File("build/phone-pages-preview").apply { mkdirs() }
-    val pages = PhonePages(brandName = "Sample Event")
+    val pages = PhonePages(webDir = EventStore().active().webDir, brandName = "Sample Event")
 
     // The rendered HTML links /web/style.css (an absolute server path); rewrite it
     // to a sibling file and drop the stylesheet next to the pages so file:// works.

@@ -90,14 +90,16 @@ data class DecorConfig(
             titlePosition = DecorPosition.TOP_CENTER,
         )
 
-        fun from(props: Properties): DecorConfig {
+        /** [baseDir] is the event bundle: `decor.<n>.file` values resolve relative to it (absolute paths are left alone). */
+        fun from(props: Properties, baseDir: File): DecorConfig {
             fun str(key: String) = props.getProperty(key, "").trim().ifBlank { null }
+            fun resolve(path: String) = File(path).let { if (it.isAbsolute) it else File(baseDir, path) }
 
             // One bad key in a layer (a typo'd position, a non-numeric rotate) skips just
             // that layer with a warning — it must never take the whole booth to the error
             // screen. Same spirit as a missing decor image, which is already logged + skipped.
             val items = (1..MAX_ITEMS).mapNotNull { n ->
-                val file = str("decor.$n.file")?.let(::File) ?: return@mapNotNull null
+                val file = str("decor.$n.file")?.let(::resolve) ?: return@mapNotNull null
                 runCatching {
                     DecorItem(
                         file = file,
@@ -119,7 +121,7 @@ data class DecorConfig(
             return DecorConfig(
                 items = items,
                 titleText = str("decor.title.text"),
-                titleFontFile = str("decor.title.font")?.let(::File),
+                titleFontFile = str("decor.title.font")?.let(::resolve),
                 titleSize = str("decor.title.size")?.toDoubleOrNull() ?: NONE.titleSize,
                 titleColor = str("decor.title.color") ?: NONE.titleColor,
                 titlePosition = position("decor.title.position", NONE.titlePosition),

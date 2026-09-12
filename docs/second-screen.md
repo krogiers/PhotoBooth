@@ -25,7 +25,7 @@ button and phone use).
 
 It's a native JavaFX window ([`PickerView`](../src/main/kotlin/com/photobooth/ui/PickerView.kt)),
 not a browser — styled by `.picker-*` in `kiosk/kiosk.css` (override in
-`config/kiosk/kiosk.css`), including the red of the button.
+`events/<id>/kiosk/kiosk.css`), including the red of the button.
 
 ## Config
 

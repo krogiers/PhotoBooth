@@ -49,6 +49,11 @@ class DownloadServer(
             ctx.onStartRequested = value
         }
 
+    /** Swapped in by `PhotoBoothApp` after an admin text edit so the phone pages pick up new wording without a restart. */
+    var strings: Strings
+        get() = ctx.strings
+        set(value) { ctx.strings = value }
+
     fun start() {
         server = embeddedServer(Netty, port = port) {
             routing {

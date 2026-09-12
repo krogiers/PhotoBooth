@@ -1,6 +1,8 @@
 package com.photobooth
 
 import com.photobooth.config.AppConfig
+import com.photobooth.config.EventBundle
+import com.photobooth.config.EventStore
 import com.photobooth.i18n.Strings
 import com.photobooth.ui.BoothView
 import com.photobooth.ui.PickerView
@@ -39,7 +41,11 @@ class PhotoBoothApp : Application() {
     @Volatile
     private var boothView: BoothView? = null
     @Volatile
+    private var pickerView: PickerView? = null
+    @Volatile
     private var boothStage: Stage? = null
+    @Volatile
+    private var eventBundle: EventBundle? = null
 
     override fun start(stage: Stage) {
         // Ctrl-C on `./gradlew run` sends SIGINT; JavaFX's stop() may not run, so
@@ -48,7 +54,16 @@ class PhotoBoothApp : Application() {
 
         boothStage = stage
 
-        val config = runCatching { AppConfig.load() }
+        val store = EventStore()
+        val bundle = runCatching { store.active() }.getOrElse {
+            placeOnScreen(stage, Screen.getPrimary(), fullscreen = true, winW = null, winH = null)
+            fail(stage, strings = null, cause = it)
+            goFullScreen(stage, on = System.getenv("PHOTOBOOTH_WINDOWED") == null)
+            return
+        }
+        eventBundle = bundle
+
+        val config = runCatching { AppConfig.load(bundle) }
             .getOrElse {
                 placeOnScreen(stage, Screen.getPrimary(), fullscreen = true, winW = null, winH = null) // no config yet — assume kiosk
                 fail(stage, strings = null, cause = it) // shows the error scene (and shows the stage)
@@ -61,7 +76,7 @@ class PhotoBoothApp : Application() {
             fullscreen = boothFs, winW = config.windowWidth, winH = config.windowHeight,
         )
 
-        val strings = runCatching { Strings.load(config.language) }
+        val strings = runCatching { Strings.load(config.language, bundle.i18nDir) }
             .getOrElse { return fail(stage, strings = null, cause = it) }
 
         // The one and only Scene: later screens swap its root, never replace the Scene.
@@ -72,7 +87,7 @@ class PhotoBoothApp : Application() {
         goFullScreen(stage, on = boothFs)
 
         bootstrap.execute {
-            val built = runCatching { PhotoBoothComponent.build(config, strings) }
+            val built = runCatching { PhotoBoothComponent.build(store, bundle, config, strings) }
             Platform.runLater {
                 built.onSuccess { installBooth(stage, it) }
                     .onFailure { fail(stage, strings, it) }
@@ -83,29 +98,22 @@ class PhotoBoothApp : Application() {
 
     private fun installBooth(stage: Stage, c: PhotoBoothComponent) {
         component = c
-        val view = BoothView(
-            stage,
-            c.session,
-            countdownSeconds = c.config.countdownSeconds,
-            previewSource = c.previewSource,
-            resultDisplaySeconds = c.config.resultDisplaySeconds,
-            strings = c.strings,
-            chooseOverlayQrCode = c.chooseOverlayQr,
-            lastPhotoQrCode = c.lastPhotoQr,
-            decor = c.config.decor,
-            kioskLayout = c.config.kioskLayout,
-        )
-        boothView = view
-        c.onStartRequested = { view.requestStart() }
-        c.previewSource.onFrame = { bytes -> view.updatePreviewFrame(bytes) }
-        // The live self-view always shows the overlay that will be used next — the default up
-        // front, then whatever a guest picks on their phone, live as they pick it.
-        view.updateOverlayPreview(c.overlaySelection?.current() ?: c.config.overlayFile)
-        c.overlaySelection?.onChanged = { overlayFile -> view.updateOverlayPreview(overlayFile) }
-        view.show()
-        c.gpio.onButtonPressed { view.startSession() }
 
-        if (c.config.secondScreenEnabled) installPicker(c, view)
+        // Wire the component → UI callbacks ONCE, indirecting through the swappable
+        // boothView / pickerView fields, so the admin panel's "reload booth UI" can
+        // rebuild the kiosk (see mountBooth) without re-touching the camera / GPIO.
+        c.onStartRequested = { boothView?.requestStart() ?: false }
+        c.previewSource.onFrame = { bytes -> boothView?.updatePreviewFrame(bytes) }
+        c.overlaySelection?.onChanged = { overlayFile ->
+            boothView?.updateOverlayPreview(overlayFile)
+            pickerView?.refreshSelection()
+        }
+        c.gpio.onButtonPressed { boothView?.startSession() }
+        c.onReloadRequested = { Platform.runLater { mountBooth(stage, c) } }
+
+        mountBooth(stage, c)
+
+        if (c.config.secondScreenEnabled) installPicker(c)
 
         // Any window's close button tears down the *whole* app: Platform.exit()
         // closes every stage (booth + picker) and then fires stop() once, which
@@ -114,12 +122,48 @@ class PhotoBoothApp : Application() {
     }
 
     /**
+     * (Re)build [BoothView] on the FX thread from freshly-loaded config, swap
+     * it in, dispose the old one. Called once at startup and again for every
+     * *live* settings change the admin panel makes. Only re-reads the display
+     * layer (`AppConfig` + `Strings`); the camera, GPIO, download server and
+     * tunnel keep running untouched. `PhotoSession.config` is refreshed too so
+     * `countdown.seconds` / `smile.hold.ms` take effect next shoot.
+     */
+    private fun mountBooth(stage: Stage, c: PhotoBoothComponent) {
+        val cfg = runCatching { AppConfig.load(c.bundle) }.getOrElse { c.config }
+        val strings = runCatching { Strings.load(cfg.language, c.bundle.i18nDir) }.getOrElse { c.strings }
+        c.session.config = cfg
+        c.overlaySelection?.defaultOverlay = cfg.overlayFile
+        c.refreshStrings(strings) // phone pages pick up edited wording too
+
+        val previous = boothView
+        val view = BoothView(
+            stage,
+            c.session,
+            countdownSeconds = cfg.countdownSeconds,
+            previewSource = c.previewSource,
+            resultDisplaySeconds = cfg.resultDisplaySeconds,
+            strings = strings,
+            chooseOverlayQrCode = c.chooseOverlayQr,
+            lastPhotoQrCode = c.lastPhotoQr,
+            decor = cfg.decor,
+            kioskLayout = cfg.kioskLayout,
+        )
+        view.onSessionStateChanged = { inProgress -> pickerView?.setBusy(inProgress) }
+        boothView = view
+        // The live self-view always shows the overlay that will be used next.
+        view.updateOverlayPreview(c.overlaySelection?.current() ?: cfg.overlayFile)
+        view.show()
+        previous?.close()
+    }
+
+    /**
      * The optional second display: the layout gallery + a red "take the
      * photo" button. It appears **only** on `screen.picker.display` — if that
      * display isn't present, or overlay selection is off, there's simply no
      * picker screen.
      */
-    private fun installPicker(c: PhotoBoothComponent, booth: BoothView) {
+    private fun installPicker(c: PhotoBoothComponent) {
         val overlays = c.overlaySelection ?: run {
             log.warn("secondscreen.enabled but overlay.selection.enabled=false — no picker screen (it has no gallery).")
             return
@@ -146,11 +190,10 @@ class PhotoBoothApp : Application() {
         }
 
         val picker = PickerView(overlays, c.strings)
-        picker.onShoot = { booth.requestStart() }
-        booth.onSessionStateChanged = { inProgress -> picker.setBusy(inProgress) }
-        // Fan the overlay-changed event out to the picker's highlight as well as the booth self-view.
-        val boothOnChanged = overlays.onChanged
-        overlays.onChanged = { f -> boothOnChanged(f); picker.refreshSelection() }
+        picker.onShoot = { boothView?.requestStart() ?: false }
+        pickerView = picker
+        // The overlay-changed fan-out (booth self-view + this picker's highlight) and the
+        // booth's onSessionStateChanged → setBusy wiring are set once in installBooth / mountBooth.
 
         val pickerFs = kioskFullscreen(c.config.pickerFullscreen) && offset == 0.0
         val stage = Stage()
@@ -270,10 +313,10 @@ class PhotoBoothApp : Application() {
         }
     }
 
-    /** Bundled `kiosk/kiosk.css`, then the optional `config/kiosk/kiosk.css` override (later = wins). */
+    /** Bundled `kiosk/kiosk.css`, then the active event's `kiosk/kiosk.css` override (later = wins). */
     private fun kioskStylesheets(): List<String> = buildList {
         javaClass.getResource("/kiosk/kiosk.css")?.toExternalForm()?.let(::add)
-        File("config/kiosk/kiosk.css").takeIf { it.isFile }?.toURI()?.toString()?.let(::add)
+        eventBundle?.kioskCss?.takeIf { it.isFile }?.toURI()?.toString()?.let(::add)
     }
 }
 

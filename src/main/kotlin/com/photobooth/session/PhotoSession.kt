@@ -19,7 +19,14 @@ import java.util.concurrent.CompletionException
  * observe [onCountdownTick] / [onPhotoReady] to drive the UI.
  */
 class PhotoSession(
-    private val config: AppConfig,
+    /**
+     * Re-assignable so the admin panel's "reload booth UI" can make timing
+     * keys (`countdown.seconds`, `smile.hold.ms`, `result.display.seconds`)
+     * take effect without a restart — [run] reads it fresh each shoot, so a
+     * swap between shoots is safe. Storage paths in a swapped-in config are
+     * ignored mid-event by design (photos already landing in the old folder).
+     */
+    @Volatile var config: AppConfig,
     private val camera: Camera,
     private val gpio: Gpio,
     private val compositor: OverlayCompositor,
